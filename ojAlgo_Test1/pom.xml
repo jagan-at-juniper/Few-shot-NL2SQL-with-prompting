@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <version>0.1</version>
+
+    <parent>
+        <groupId>org.knowm.xchart</groupId>
+        <artifactId>xchart-parent</artifactId>
+        <version>3.5.2</version>
+    </parent>
+
+    <groupId>ojAlgoTest</groupId>
+    <artifactId>ojAlgo_Test1</artifactId>
+
+    <!--<properties>-->
+        <!--<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>-->
+        <!--<provided.scope>provided</provided.scope>-->
+        <!--<storm.version>1.0.2</storm.version>-->
+        <!--<protobuf-java.version>3.4.0</protobuf-java.version>-->
+        <!--<commons-configuration2.version>2.1</commons-configuration2.version>-->
+        <!--<commons-beanutils.version>1.9.3</commons-beanutils.version>-->
+        <!--<lombok.version>1.16.10</lombok.version>-->
+        <!--<maven.test.skip>true</maven.test.skip>-->
+    <!--</properties>-->
+
+    <dependencies>
+        <dependency>
+            <groupId>org.ojalgo</groupId>
+            <artifactId>ojalgo</artifactId>
+            <version>45.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.json-simple</groupId>
+            <artifactId>json-simple</artifactId>
+            <version>1.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.praesid</groupId>
+            <artifactId>live-stats</artifactId>
+            <version>1.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-configuration2</artifactId>
+            <version>2.1</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-math3 -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.6.1</version>
+        </dependency>
+        <!--<dependency>-->
+            <!--<groupId>org.knowm.xchart</groupId>-->
+            <!--<artifactId>xchart-parent</artifactId>-->
+        <!--</dependency>-->
+        <dependency>
+            <groupId>org.knowm.xchart</groupId>
+            <artifactId>xchart</artifactId>
+            <version>3.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.18</version>
+        </dependency>
+    </dependencies>
+
+</project>

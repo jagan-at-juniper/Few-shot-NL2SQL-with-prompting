@@ -1,0 +1,6 @@
+*.pyc
+*.html
+Untitled*
+venv*
+.idea
+.venv*

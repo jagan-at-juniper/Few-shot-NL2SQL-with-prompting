@@ -1,0 +1,332 @@
+package com.mist.sandbox;
+
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.ojalgo.OjAlgoUtils;
+import org.ojalgo.RecoverableCondition;
+import org.ojalgo.array.Array1D;
+import org.ojalgo.matrix.BasicMatrix;
+import org.ojalgo.matrix.PrimitiveMatrix;
+import org.ojalgo.matrix.decomposition.QR;
+import org.ojalgo.matrix.store.ElementsSupplier;
+import org.ojalgo.matrix.store.MatrixStore;
+import org.ojalgo.matrix.store.PhysicalStore;
+import org.ojalgo.matrix.store.PrimitiveDenseStore;
+import org.ojalgo.matrix.task.InverterTask;
+import org.ojalgo.matrix.task.SolverTask;
+import org.ojalgo.netio.BasicLogger;
+import org.ojalgo.random.Normal;
+import org.ojalgo.random.Weibull;
+
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+
+import static org.ojalgo.function.PrimitiveFunction.DIVIDE;
+
+public class ojTest1 {
+    public static void main(String[] args) throws Exception {
+        System.out.println("Getting data ...");
+        ArrayList<Double> data = get_data("setting1_seq_d0.json");
+        System.out.println("Got data: " + data);
+
+        int mk = 10;
+        Double lrate = 1.75D;
+        Double epsilon = Math.pow(10, -3);
+
+        PhysicalStore.Factory<Double, PrimitiveDenseStore> storeFactory = PrimitiveDenseStore.FACTORY;
+//        PrimitiveDenseStore w = storeFactory.makeFilled(1, mk, new Normal(0.5, 0.1));
+        PrimitiveDenseStore w = storeFactory.makeZero(1, mk);
+        for (int i=0; i < mk; i++) w.set(i, 0.1D);
+
+        ArrayList<Double> list = new ArrayList();
+        Double SE = 0.0D;
+
+        PrimitiveDenseStore A_trans = storeFactory.makeEye(mk, mk);
+        A_trans.multiply(epsilon);
+
+        PrimitiveDenseStore window = storeFactory.makeZero(1, mk);
+
+        for (int i=mk; i < data.size(); i++) {
+            int window_idx = 0;
+            for (int j=i-mk; j < i; j++) window.set(window_idx++, data.get(j)); // load the window
+
+            // prediction = w * data(i-mk:i-1)' # scalar: next prediction
+            Double prediction = w.multiply(window.transpose()).doubleValue(0, 0);
+
+            // diff = prediction - data(i); # scalar: absolute error
+            Double diff = prediction - data.get(i);
+
+            // grad = 2 * data(i-mk:i-1) * diff; # row vector: gradient?
+            MatrixStore grad = window.multiply(2.0D).multiply(diff); // row vector: gradient?
+
+            // A_trans = A_trans - A_trans * grad' * grad * A_trans/(1 + grad * A_trans * grad')
+            PrimitiveDenseStore A_trans_div = A_trans.copy(); // copy because we modify A_trans in place for A_trans_div
+            // A_trans_div = A_trans/(1 + grad * A_trans * grad') from the equation above
+            A_trans_div.modifyAll(DIVIDE.second(1.0D + grad.multiply(A_trans).multiply(grad.transpose()).doubleValue(0, 0)));
+            A_trans = (PrimitiveDenseStore)A_trans.subtract(A_trans.multiply(grad.transpose()).multiply(grad).multiply(A_trans_div));
+
+            // w = w - lrate * grad * A_trans ; # update weights
+            w = (PrimitiveDenseStore)w.subtract(A_trans.multiply(grad).multiply(lrate));
+
+            list.add(diff);
+
+            // SE = SE + diff^2; # squared error
+            SE += Math.pow(diff, 2);
+
+            // MSE = SE / i
+            Double MSE = SE / list.size();
+
+            // rMSE = sqrt(MSE)
+            Double RMSE = Math.sqrt(MSE);
+
+            Double window_SE = 0.0D;
+            Double window_RMSE = 0.0D;
+            if (list.size() > mk) {
+                for (int wi = list.size() - mk; wi < list.size(); wi++) {
+                    window_SE += Math.pow(list.get(wi), 2);
+                }
+                window_RMSE = Math.sqrt(window_SE / mk);
+            }
+
+            System.out.println("real = " + data.get(i) + ", prediction = " + prediction + ", diff = " + diff + ", whole RMSE = " + RMSE + ", window RMSE = " + window_RMSE);
+        }
+
+        System.out.println("Max diff = " + Collections.max(list));
+        Double diffsum = 0.0D;
+        for (Double diff:list) diffsum += diff;
+        Double meandiff = diffsum / list.size();
+        System.out.println("Mean diff = " + meandiff);
+
+        String dummy = "dummy";
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ArrayList<Double> get_data(String filename) {
+        try {
+            JSONParser parser = new JSONParser();
+            JSONObject jsonObject = (JSONObject) parser.parse(new FileReader(
+                    "C:/Users/rcrowe/Documents/repos/ojAlgo_Test1/src/main/java/com/mist/sandbox/" + filename));
+            return (ArrayList<Double>)jsonObject.get("data");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}
+
+//load('/home/rcrowe/Desktop/OARIMA_code_data/data/setting1.mat')
+//        options.mk = 10;
+//        options.init_w = rand([1,options.mk]); # 1x10 column vector of random floats in (0,1)
+//        options.t_tick = 1;
+//
+//
+//        options.lrate = 1;
+//        [RMSE_ogd1,w] = arima_ogd(seq_d1,options);
+//
+//        options.lrate=1.75;
+//        options.epsilon=10^-0.5;
+//        [RMSE_ons1,w] = arima_ons(seq_d1,options);
+//
+//        options.lrate = 10^-3;
+//        [RMSE_ogd0,w] = arima_ogd(seq_d0,options);
+//
+//        options.lrate = 10^3;
+//        options.epsilon=10^-5.5;
+//        [RMSE_ons0,w] = arima_ons(seq_d0,options);
+//
+//        options.initlen = options.mk;
+//        [RMSE_yk,w] = arima_yk(seq_d1,options);
+
+//function [RMSE,w] = arima_ons(data,options)
+//
+//        mk = options.mk; # scalar: length of the sliding window
+//        lrate = options.lrate; # scalar: learning rate
+//        w = options.init_w; # row vector: initial weights, 1x10
+//        epsilon = options.epsilon; # scalar: tuning parameter
+//
+//        list = [];
+//        SE = 0;
+//        A_trans = eye(mk) * epsilon; # 2d diagonal matrix of epsilon
+//        for i = mk+1:size(data, 2) # start from end of first window
+//
+//            prediction = w * data(i-mk:i-1)' # scalar: next prediction
+//            diff = prediction - data(i); # scalar: absolute error
+//            grad = 2 * data(i-mk:i-1) * diff; # row vector: gradient?
+//
+//            A_trans = A_trans - A_trans * grad' * grad * A_trans/(1 + grad * A_trans * grad'); # 2d transform matrix
+//            w = w - lrate * grad * A_trans ; # update weights
+//
+//            SE = SE + diff^2; # squared error
+//
+//            if mod(i, options.t_tick) == 0  # how often we calculate RMSE
+//                MSE = SE / i
+//                rMSE = sqrt(MSE)
+//                list = [list; rMSE]; # list of RMSE
+//
+//            end
+//        end
+//
+//        RMSE = list;
+
+// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//        BasicLogger.debug();
+//        BasicLogger.debug(OArimaONS.class.getSimpleName());
+//        BasicLogger.debug(OjAlgoUtils.getTitle());
+//        BasicLogger.debug(OjAlgoUtils.getDate());
+//        BasicLogger.debug();
+//
+//        BasicMatrix.Factory<PrimitiveMatrix> matrixFactory = PrimitiveMatrix.FACTORY;
+//        PhysicalStore.Factory<Double, PrimitiveDenseStore> storeFactory = PrimitiveDenseStore.FACTORY;
+//        // BasicMatrix.Factory and PhysicalStore.Factory are very similar.
+//        // Every factory in ojAlgo that makes 2D-structures
+//        // extends/implements the same interface.
+//
+//        PrimitiveMatrix matrixA = matrixFactory.makeEye(5, 5);
+//        BasicLogger.debug("PrimitiveMatrix matrixA", matrixA);
+//        // Internally this creates an "eye-structure" - not a large array.
+//        PrimitiveDenseStore storeA = storeFactory.makeEye(5, 5);
+//        // A PrimitiveDenseStore is always a "full array". No smart data
+//        // structures here.
+//
+//        PrimitiveMatrix matrixB = matrixFactory.makeFilled(5, 3, new Weibull(5.0, 2.0));
+//        BasicLogger.debug("PrimitiveMatrix matrixB", matrixB);
+//        PrimitiveDenseStore storeB = storeFactory.makeFilled(5, 3, new Weibull(5.0, 2.0));
+//        // When you create a matrix with random elements you can specify
+//        // their distribution.
+//
+//        /* Matrix multiplication */
+//
+//        PrimitiveMatrix matrixC = matrixA.multiply(matrixB);
+//        BasicLogger.debug("PrimitiveMatrix matrixC", matrixC);
+//        // Multiplying two PrimitiveMatrix:s is trivial. There are no
+//        // alternatives, and the returned product is a PrimitiveMatrix
+//        // (same as the inputs).
+//
+//        PrimitiveMatrix matrixT = matrixB.transpose();
+//        BasicLogger.debug("PrimitiveMatrix matrixT", matrixT);
+//
+//        // Doing the same thing using PrimitiveDenseStore (MatrixStore) you
+//        // have options...
+//
+//        BasicLogger.debug("Different ways to do matrix multiplication with " + "MatrixStore:s");
+//        BasicLogger.debug();
+//
+//        MatrixStore<Double> storeC = storeA.multiply(storeB);
+//        // One option is to do exactly what you did with PrimitiveMatrix.
+//        // The only difference is that the return type is MatrixStore rather
+//        // than PhysicalStore, PrimitiveDenseStore or whatever else you input.
+//        BasicLogger.debug("MatrixStore MatrixStore#multiply(MatrixStore)", storeC);
+//
+//        PrimitiveDenseStore storeCPreallocated = storeFactory.makeZero(5, 3);
+//        // Another option is to first create the matrix that should hold the
+//        // resulting product,
+//        storeA.multiply(storeB, storeCPreallocated);
+//        // and then perform the multiplication. This enables reusing memory
+//        // (the product matrix).
+//        BasicLogger.debug("void MatrixStore#multiply(Access1D, ElementsConsumer)", storeCPreallocated);
+//
+//        ElementsSupplier<Double> storeCSupplier = storeB.premultiply(storeA);
+//        // A third option is the premultiply method:
+//        // 1) The left and right argument matrices are interchanged.
+//        // 2) The return type is an ElementsSupplier rather than
+//        //    a MatrixStore.
+//        // This is because the multiplication is not yet performed.
+//        // It is possible to define additional operation on
+//        // an ElementsSupplier.
+//        MatrixStore<Double> storeCLater = storeCSupplier.get();
+//        // The multiplication, and whatever additional operations you defined,
+//        // is performed when you call #get().
+//        BasicLogger.debug("ElementsSupplier MatrixStore#premultiply(Access1D)", storeCLater);
+//
+//        // A couple of more alternatives that will do the same thing.
+//        storeCPreallocated.fillByMultiplying(storeA, storeB);
+//        BasicLogger.debug("void ElementsConsumer#fillByMultiplying(Access1D, Access1D)", storeCLater);
+//        storeCSupplier.supplyTo(storeCPreallocated);
+//        BasicLogger.debug("void ElementsSupplier#supplyTo(ElementsConsumer)", storeCLater);
+//
+//        matrixA.invert();
+//
+//        // With MatrixStore:s you need to use an InverterTask
+//        InverterTask<Double> inverter = InverterTask.PRIMITIVE.make(storeA);
+//        // There are many implementations of that interface. This factory
+//        // method will return one that may be suitable, but most likely you
+//        // will want to choose implementation based on what you know about
+//        // the matrix.
+//        try {
+//            inverter.invert(storeA);
+//        } catch (RecoverableCondition e) {
+//            // Will throw and exception if inversion fails, rethrowing it.
+//            throw new RuntimeException(e);
+//        }
+//
+//        matrixA.solve(matrixC);
+//
+//        SolverTask<Double> solver = SolverTask.PRIMITIVE.make(storeA, storeC);
+//        try {
+//            solver.solve(storeA, storeC);
+//        } catch (RecoverableCondition e) {
+//            // Will throw and exception if solving fails, rethrowing it.
+//            throw new RuntimeException(e);
+//        }
+//
+//        // Most likely you want to do is to instantiate some matrix
+//        // decomposition (there are several).
+//
+//        QR<Double> qr = QR.PRIMITIVE.make(storeA);
+//        qr.decompose(storeA);
+//        if (qr.isSolvable()) {
+//            qr.getSolution(storeC);
+//        } else {
+//            // You should verify that the equation system is solvable,
+//            // and do something else if it is not.
+//            throw new RuntimeException("Cannot solve the equation system");
+//        }
+//
+//        /* Setting individual elements */
+//
+//        storeA.set(3, 1, 3.14);
+//        storeA.set(3, 0, 2.18);
+//        // PhysicalStore instances are naturally mutable. If you want to set
+//        // or modify something - just do it
+//
+//        BasicMatrix.Builder<PrimitiveMatrix> matrixBuilder = matrixA.copy();
+//        // PrimitiveMatrix is immutable. To modify anything, you need to copy
+//        // it to Builder instance.
+//
+//        matrixBuilder.add(3, 1, 3.14);
+//        matrixBuilder.add(3, 0, 2.18);
+//
+//        matrixBuilder.build();
+//
+//        /* Creating matrices by explicitly setting all elements */
+//
+//        double[][] tmpData = {
+//                {1.0, 2.0, 3.0},
+//                {4.0, 5.0, 6.0},
+//                {7.0, 8.0, 9.0}
+//        };
+//
+//        matrixFactory.rows(tmpData);
+//        storeFactory.rows(tmpData);
+//
+//        // If you don't want/need to first create some (intermediate) array
+//        // for the elements, you can of course set them on the matrix
+//        // directly.
+//        PrimitiveDenseStore storeZ = storeFactory.makeEye(3, 3);
+//
+//        // Since PrimitiveMatrix is immutable this has to be done via
+//        // a builder.
+//        BasicMatrix.Builder<PrimitiveMatrix> matrixZBuilder = matrixFactory.getBuilder(3, 3);
+//
+//        for (int j = 0; j < 3; j++) {
+//            for (int i = 0; i < 3; i++) {
+//                matrixZBuilder.set(i, j, i * j);
+//                storeZ.set(i, j, i * j);
+//            }
+//        }
+//
+//        matrixZBuilder.get();
