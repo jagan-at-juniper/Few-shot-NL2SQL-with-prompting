@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+
+case $OSTYPE in
+	darwin*)
+		[ ! -z $(which greadlink) ] || {
+			echo "error: greadlink is not installed. install it by \"brew install coreutils\""
+			return 1
+		}
+		READLINK="greadlink"
+		;;
+esac
+SCRIPT_DIR="$(dirname "$(${READLINK:-readlink} -f "${BASH_SOURCE[0]}")")"
+
+aws-okta version > /dev/null || { echo "error: aws-okta is not installed"; exit 1; }
+[ -f "$SCRIPT_DIR/activate" ] || { echo "$0: error - missing $SCRIPT_DIR/activate script"; exit 1; }
+
+source $SCRIPT_DIR/activate
+
+# echo -e "${CLR_HL}Switching to virtualenv directory: $VIRTUAL_ENV$CLR_SANE"
+# cd $VIRTUAL_ENV
+
+setup_jupyter_notebook() {
+	pip show jupyter 2>&- >&- || pip install jupyter==1.0.0
+	export PYSPARK_DRIVER_PYTHON=jupyter
+	export PYSPARK_DRIVER_PYTHON_OPTS=notebook
+}
+
+setup_ipython() {
+	pip show ipython 2>&- >&- || pip install ipython==5.8.0
+	export PYSPARK_DRIVER_PYTHON=ipython
+}
+
+ROLE=${ROLE:-mist-viewer}
+
+CMD=$1
+shift
+ARGS=$@
+
+case "$CMD" in
+	"jupyter-notebook")
+		setup_jupyter_notebook
+		CMD="pyspark"
+		;;
+	"ipython")
+		setup_ipython
+		CMD="pyspark"
+		;;
+esac
+
+set -x
+aws-okta exec $ROLE -- $CMD $ARGS

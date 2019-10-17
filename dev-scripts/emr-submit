@@ -1,0 +1,63 @@
+#!/bin/bash
+
+#set -x
+function join_by { local IFS="$1"; shift; echo "$*"; }
+
+OPTIND=1
+while getopts "e:c:R:p:r:V:" opt; do
+	case "$opt" in
+	e)  ENV=$OPTARG
+		;;
+	c)  CLUSTER=$OPTARG
+		;;
+	R)  REGION=$OPTARG
+		;;
+	p)  PYZIP=$OPTARG
+		;;
+	r)  RUNNER=$OPTARG
+		;;
+	V)  VERSION=$OPTARG
+		;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+[ "${1:-}" = "--" ] && shift
+
+ENV=${ENV:-staging}
+VERSION=${VERSION:-latest}
+REGION=${REGION:-us-east-1}
+CLUSTER=${CLUSTER:-j-3KNIN36BP9RXP  } # data-science-py3-dev
+PYZIP=${PYZIP-s3://mist-${ENV}-assets/services/spark_jobs/spark_jobs-${VERSION}.zip}
+RUNNER=${RUNNER:-s3://mist-${ENV}-assets/services/spark_jobs/runner-${VERSION}.py}
+
+CASSANDRA_HOSTS=cassandra-v3-000-${ENV}.mist.pvt
+
+MAIN=$1
+shift
+
+args="--deploy-mode cluster --master yarn --py-files ${PYZIP}  \
+--packages 'com.datastax.spark:spark-cassandra-connector_2.11:2.4.0,org.postgresql:postgresql:42.2.5,org.elasticsearch:elasticsearch-hadoop:6.1.1,commons-httpclient:commons-httpclient:3.1' \
+--conf spark.yarn.maxAppAttempts=1 \
+--conf spark.driver.memoryOverhead=128m \
+--conf spark.cassandra.connection.host=${CASSANDRA_HOSTS} \
+${RUNNER} ${MAIN} $*"
+
+CMD="aws emr add-steps --cluster-id ${CLUSTER} --region ${REGION} \
+	--steps Type=Spark,Name="${MAIN}",ActionOnFailure=CONTINUE,Args=[`join_by , ${args}`]"
+
+echo "
+ENV=${ENV}
+REGION=${REGION}
+VERSION=${VERSION}
+CLUSTER=${CLUSTER}
+PYZIP=${PYZIP}
+RUNNER=${RUNNER}
+
+CMD=spark-submit ${args}
+
+AWS_CMD=${CMD}
+"
+
+${CMD}

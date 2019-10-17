@@ -1,0 +1,8 @@
+#!/bin/bash
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $(basename $0) <output_filename>"
+    exit 1
+fi
+
+[ -f $1 ] && rm -f $1
+zip -R $1 -x "airflow/*" "mist-ci*" "venv*" "*__pycache__/" "dev-scripts/*" ".circleci/*" @ "*.py" "*.yml" "*.pickle" "*.json"

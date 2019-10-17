@@ -1,0 +1,35 @@
+#!/bin/bash
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $(basename $0) <output_filename>"
+    exit 1
+fi
+
+PYPI_PACKAGES=$(cat requirements.txt | sed -e '/^# CLUSTER START$/,/^# CLUSTER END$/!d' -e '/^#.*/d' -e '/^$/d')
+PYPI_PACKAGES=${PYPI_PACKAGES//$'\n'/ }
+
+PYTHON=${PYTHON:-python3}
+
+# script header
+cat > $1 <<- EOF
+#!/bin/bash
+EOF
+
+# emr-5.27.0 will install numpy-1.14.5 for spark application *after* bootstrap script.
+# To workaround that, we install rpm (to satisfy application installation) and remove it by pip
+cat >> $1 <<- EOF
+sudo yum install -y python27-numpy python36-numpy
+while $PYTHON -m pip show numpy; do sudo $PYTHON -m pip uninstall -y numpy; done
+EOF
+
+# install our python packages
+# disable cython for cassandra because it takes too long to build
+cat >> $1 <<- EOF
+export CASS_DRIVER_NO_CYTHON=1
+sudo -E $PYTHON -m pip install $PYPI_PACKAGES
+EOF
+
+# emr-5.27.0 shipped with python36-dateutil, which provides py-dateutil 2.2 and
+# conflicts with what we want (python-dateutil). Remove it by pip.
+cat >> $1 <<- EOF
+while $PYTHON -m pip show py-dateutil; do sudo -E $PYTHON -m pip uninstall -y py-dateutil; done
+EOF

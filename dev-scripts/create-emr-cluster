@@ -1,0 +1,64 @@
+#!/bin/bash
+
+function join_by { local IFS="$1"; shift; echo "$*"; }
+function build_ec2_attributes {
+    local attr=()
+    [ -z "$KEYNAME" ] || {
+        attr+=(KeyName=$KEYNAME);
+    }
+    [ -z "$ADDITIONAL_SG" ] || {
+        attr+=(AdditionalMasterSecurityGroups=$ADDITIONAL_SG);
+        attr+=(AdditionalSlaveSecurityGroups=$ADDITIONAL_SG);
+    }
+    [ -z "$SUBNET_ID" ] || {
+        attr+=(SubnetId=$SUBNET_ID);
+    }
+    echo $(join_by , "${attr[@]}")
+}
+
+CLUSTER_NAME=${1:-${USER}-dev}
+ENV=${ENV:-staging}
+REGION=${REGION:-us-east-1}
+KEYNAME=${KEYNAME-staging-data-science}
+ADDITIONAL_SG=${ADDITIONAL_SG-sg-a69180c3} # staging_default
+SUBNET_ID=${SUBNET_ID-subnet-3b33d810 } # staging default VPC
+
+MASTER_TYPE=${MASTER_TYPE:-m4.large}
+MASTER_COUNT=${MASTER_COUNT:-1}
+CORE_TYPE=${CORE_TYPE:-m3.xlarge}
+CORE_COUNT=${CORE_COUNT:-1}
+TASK_TYPE=${TASK_TYPE:-m3.xlarge}
+TASK_COUNT=${TASK_COUNT:-1}
+TASK_MAX_COUNT=${TASK_MAX_COUNT:-2}
+TASK_MIN_COUNT=${TASK_MIN_COUNT:-0}
+TASK_SCALING_ADJUSTMENT=${TASK_SCALING_ADJUSTMENT:-2}
+
+AUTO_SCALE_POLICY={Constraints={MaxCapacity=$TASK_MAX_COUNT,MinCapacity=$TASK_MIN_COUNT},Rules=[{Name=default-scale-out,Description=,Trigger={CloudWatchAlarmDefinition={MetricName=YARNMemoryAvailablePercentage,Unit=PERCENT,Namespace=AWS/ElasticMapReduce,Threshold=15,EvaluationPeriods=1,Period=300,ComparisonOperator=LESS_THAN,Statistic=AVERAGE}},Action={SimpleScalingPolicyConfiguration={CoolDown=300,AdjustmentType=CHANGE_IN_CAPACITY,ScalingAdjustment=$TASK_SCALING_ADJUSTMENT}}},{Name=default-scale-in,Trigger={CloudWatchAlarmDefinition={MetricName=YARNMemoryAvailablePercentage,Unit=PERCENT,Namespace=AWS/ElasticMapReduce,Threshold=0.75,EvaluationPeriods=1,Period=300,ComparisonOperator=GREATER_THAN,Statistic=AVERAGE}},Description=,Action={SimpleScalingPolicyConfiguration={CoolDown=300,AdjustmentType=CHANGE_IN_CAPACITY,ScalingAdjustment=-$TASK_SCALING_ADJUSTMENT}}}]}
+
+CONFIGURATION_ARG='--configurations [{"Classification":"spark-env","Properties":{},"Configurations":[{"Classification":"export","Properties":{"PYSPARK_PYTHON":"/usr/bin/python3"}}]},{"Classification":"hive-site","Properties":{"hive.metastore.client.factory.class":"com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"}},{"Classification":"spark-hive-site","Properties":{"hive.metastore.client.factory.class":"com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"}}]'
+
+EC2_ATTRIBUTES=$(build_ec2_attributes)
+
+set -x
+aws emr create-cluster \
+    --region "$REGION" \
+    --name "$CLUSTER_NAME" \
+    --release-label emr-5.27.0 \
+    --applications Name=TensorFlow Name=Spark Name=Livy Name=Hive \
+    --tags 'service=emr' 'NO_SLACK=' \
+    --use-default-roles \
+    --auto-scaling-role EMR_AutoScaling_DefaultRole \
+    --ec2-attributes "$EC2_ATTRIBUTES" \
+    --enable-debugging \
+    $CONFIGURATION_ARG \
+    --log-uri 's3://mist-data-science-dev/emr_logs/' \
+    --instance-groups \
+        InstanceGroupType=MASTER,InstanceCount=$MASTER_COUNT,InstanceType=$MASTER_TYPE,BidPrice=OnDemandPrice \
+        InstanceGroupType=CORE,InstanceCount=$CORE_COUNT,InstanceType=$CORE_TYPE,BidPrice=OnDemandPrice \
+        'InstanceGroupType=TASK,InstanceCount='"$TASK_COUNT"',InstanceType='"$TASK_TYPE"',BidPrice=OnDemandPrice,AutoScalingPolicy='"$AUTO_SCALE_POLICY"'' \
+    --bootstrap-actions \
+        "Path=s3://mist-$ENV-assets/services/spark_jobs/emr-bootstrap-latest.sh,Name=Install Python Libraries (spark_jobs)" \
+        "Path=s3://mist-data-science-dev/emr-bootstrap-dev/emr-bootstrap-plot-dev.sh,Name=Install Python libraries (Plot)" \
+        "Path=s3://mist-data-science-dev/emr-bootstrap-dev/emr-bootstrap-ssh-env.sh,Name=Setup SSH env" \
+        "Path=s3://mist-data-science-dev/emr-bootstrap-dev/emr-bootstrap-master-env-dev.sh,Name=Master Environment" \
+    --termination-protected

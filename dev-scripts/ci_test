@@ -1,0 +1,49 @@
+#!/bin/bash -e
+# vim: ts=4:sw=4:noet
+
+set -o pipefail
+
+case $OSTYPE in
+	darwin*)
+		[ ! -z $(which greadlink) ] || {
+			echo "error: greadlink is not installed. install it by \"brew install coreutils\""
+			return 1
+		}
+		READLINK="greadlink"
+		;;
+esac
+SCRIPT_DIR="$(dirname "$(${READLINK:-readlink} -f "${BASH_SOURCE[0]-$0}")")"
+PROJECT_DIR="$(dirname ${SCRIPT_DIR})"
+
+OPTIND=1
+while getopts "o:" opt; do
+	case "$opt" in
+		o)  OUT_DIR=$OPTARG
+			;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+[ "${1:-}" = "--" ] && shift
+
+OUT_DIR=${OUT_DIR:-test-results/local}
+JUNIT_XML=$OUT_DIR/results.xml
+REPORT_HTML=$OUT_DIR/results.html
+PYTEST_LOG=$OUT_DIR/pytest.log
+export COVERAGE_FILE=$OUT_DIR/.coverage
+
+mkdir -p "$OUT_DIR"
+
+coverage erase
+set -x
+coverage run \
+	--source $PROJECT_DIR \
+	--omit "$VIRTUAL_ENV/*" \
+	-m py.test \
+	--junit-xml $JUNIT_XML \
+	--html $REPORT_HTML \
+	--rootdir $PROJECT_DIR \
+	--color=yes \
+	$@ \
+	2>&1 | tee $PYTEST_LOG

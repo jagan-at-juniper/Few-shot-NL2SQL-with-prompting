@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+CURDIR="$( cd "$( dirname "$0" )" && pwd )"
+source $CURDIR/activate
+
+update_docker(){
+    echo "updating MistDockerfile for k8s"
+    cat > $SPARK_HOME/kubernetes/dockerfiles/spark/MistDockerfile <<'EOF'
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+FROM openjdk:8-alpine
+
+ARG spark_jars=jars
+ARG img_path=kubernetes/dockerfiles
+ARG k8s_tests=kubernetes/tests
+ARG hadoop_path=hadoop-2.8.5
+
+# Before building the docker image, first build and make a Spark distribution following
+# the instructions in http://spark.apache.org/docs/latest/building-spark.html.
+# If this docker file is being used in the context of building your images from a Spark
+# distribution, the docker build command should be invoked from the top level directory
+# of the Spark distribution. E.g.:
+# docker build -t spark:latest -f kubernetes/dockerfiles/spark/Dockerfile .
+
+RUN set -ex && \
+    apk upgrade --no-cache && \
+    apk add --no-cache bash tini libc6-compat linux-pam && \
+    mkdir -p /opt/spark && \
+    mkdir -p /opt/spark/work-dir && \
+    touch /opt/spark/RELEASE && \
+    rm /bin/sh && \
+    ln -sv /bin/bash /bin/sh && \
+    echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su && \
+    chgrp root /etc/passwd && chmod ug+rw /etc/passwd
+
+COPY ${hadoop_path} /opt/hadoop
+COPY ${spark_jars} /opt/spark/jars
+COPY bin /opt/spark/bin
+COPY sbin /opt/spark/sbin
+COPY ${img_path}/spark/mist-entrypoint.sh /opt/entrypoint.sh
+COPY examples /opt/spark/examples
+COPY ${k8s_tests} /opt/spark/tests
+COPY data /opt/spark/data
+
+
+ENV SPARK_HOME /opt/spark
+
+WORKDIR /opt/spark/work-dir
+
+ENTRYPOINT [ "/opt/entrypoint.sh" ]
+EOF
+
+    mist_entrypoint_path=$SPARK_HOME/kubernetes/dockerfiles/spark/mist-entrypoint.sh
+    echo "Making Mist entrypoint for our changes"
+    # add it right before the SPARK_K8S_CMD
+    cat $SPARK_HOME/kubernetes/dockerfiles/spark/entrypoint.sh \
+        | sed '/SPARK_K8S_CMD=/ i export SPARK_DIST_CLASSPATH=$(/opt/hadoop/bin/hadoop classpath)' \
+        | sed '/^SPARK_CLASSPATH=/ a SPARK_CLASSPATH="$SPARK_CLASSPATH:${SPARK_DIST_CLASSPATH}"' \
+        > $mist_entrypoint_path
+    chmod +x $mist_entrypoint_path
+}
+
+
+build_docker(){
+    IMAGE_NAME=${IMAGE_NAME:-spark-example}
+    pushd $SPARK_HOME
+    ./bin/docker-image-tool.sh -t ${IMAGE_NAME} -f $SPARK_HOME/kubernetes/dockerfiles/spark/MistDockerfile build
+    popd >/dev/null
+}
+
+
+build_docker_minikube(){
+    IMAGE_NAME=${IMAGE_NAME:-spark-example}
+    pushd $SPARK_HOME
+    ./bin/docker-image-tool.sh -m -t ${IMAGE_NAME} -f $SPARK_HOME/kubernetes/dockerfiles/spark/MistDockerfile build
+    popd >/dev/null
+}
+
+push_ecr(){
+    IMAGE_NAME=${IMAGE_NAME:-spark-example}
+    # docker / ECR release
+    DOCKER_REGISTRY="660610034966.dkr.ecr.us-east-1.amazonaws.com"
+    REGION="us-east-1"
+    SUFFIX=$2
+    DOCKER_ARGS=${DOCKER_ARGS:-""}
+    # https://github.com/aws/aws-cli/issues/1926
+    [[ `docker login --help | grep Email` == "" ]] && NOEMAIL="--no-include-email"
+    eval `aws ecr get-login --region $REGION $NOEMAIL`
+    docker tag spark:$IMAGE_NAME $DOCKER_REGISTRY/mistsys/spark:$IMAGE_NAME
+    docker push $DOCKER_REGISTRY/mistsys/spark:$IMAGE_NAME
+    docker tag spark-py:$IMAGE_NAME $DOCKER_REGISTRY/mistsys/spark-py:$IMAGE_NAME
+    docker push $DOCKER_REGISTRY/mistsys/spark-py:$IMAGE_NAME
+    docker tag spark-r:$IMAGE_NAME $DOCKER_REGISTRY/mistsys/spark-r:$IMAGE_NAME
+    docker push $DOCKER_REGISTRY/mistsys/spark-r:$IMAGE_NAME
+}
+
+
+update_docker
+
+case $1 in
+    build_docker)
+        build_docker
+        ;;
+    build_docker_minikube)
+        build_docker_minikube
+        ;;
+    push_ecr)
+        build_docker
+        push_ecr
+        ;;
+    *)
+        echo "usage: $(basename $0) <build_docker|build_docker_minikube|push_ecr>"
+        ;;
+esac
