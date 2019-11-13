@@ -5,6 +5,18 @@ Purpose scripts sharing between data scientist, and not used on production direc
 
 Scripts ( mostly python) used for data exploration, model testing/verification...
 
+# Playground
+## Jupyter Notebook
+
+```shell
+./dev-scripts/okta_spark jupyter-notebook
+```
+
+## IPython
+
+```shell
+./dev-scripts/okta_spark ipython
+```
 
 
 # install python 3
