@@ -14,7 +14,7 @@ spark = SparkSession.builder.getOrCreate()
 sc = spark.sparkContext
 
 
-DATE = 'dt=2019-09-17'
+DATE = 'dt=2019-11-13'
 s3_path = 's3a://mist-secorapp-production/ap-stats-analytics/ap-stats-analytics-production/' + DATE + '/*'
 df = spark.read.parquet(s3_path).filter(col("model").startswith('AP') & col("delta") == True)
 
