@@ -4,10 +4,10 @@ Incubator for data science projects.
 Purpose:
  * scripts sharing between data scientist, and NOT for production push directly. 
  * Scripts ( mostly python) used for data exploration, model testing/verification...
- * Others Scripts you like to share or collaborate with team.
+ * Others Messy-intermediate codes you don't store locally.
  * ... 
 
-Feel free to build new sub-directory.
+Feel free to build your own sub-directory.
 
 # Playground
 ## Jupyter Notebook
