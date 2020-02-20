@@ -1,17 +1,22 @@
 # ds_incubator
 Incubator for data science projects.
 
-Purpose scripts sharing between data scientist, and not used on production directly. 
+Purpose:
+ * scripts sharing between data scientist, and NOT for production push directly. 
+ * Scripts ( mostly python) used for data exploration, model testing/verification...
+ * Others Scripts you like to share or collaborate with team.
+ * ... 
 
-Scripts ( mostly python) used for data exploration, model testing/verification...
+Feel free to build new sub-directory.
 
 # Playground
 ## Jupyter Notebook
+( the below scripts cloned from spark_jobs repo)
 
 ```shell
 ./dev-scripts/okta_spark jupyter-notebook
 ```
-
+ 
 ## IPython
 
 ```shell
