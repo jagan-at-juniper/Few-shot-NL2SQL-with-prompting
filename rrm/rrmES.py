@@ -3,7 +3,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 
 env = "production"
-es = Elasticsearch([{'host': 'es-access-000-{env}.mist.pvt'.format(env=env), 'port': 9200}])
+es = Elasticsearch([{'host': 'es-proxy-{env}.mist.pvt'.format(env=env), 'port': 9200}])
 
 es_index = "discovered_switches_201908"
 
