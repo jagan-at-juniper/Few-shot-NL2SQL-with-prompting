@@ -16,6 +16,12 @@ Feel free to build your own sub-directory.
 ```shell
 ./dev-scripts/okta_spark jupyter-notebook
 ```
+
+``shell
+#./dev-scripts/okta_spark jupyter-notebook --packages graphframes:graphframes:0.5.0-spark2.1-s_2.11
+./dev-scripts/okta_spark jupyter-notebook --packages graphframes:graphframes:0.7.0-spark2.3-s_2.11
+```
+download  graphframes-0.7.0-spark2.3-s_2.11.jar .
  
 ## IPython
 
