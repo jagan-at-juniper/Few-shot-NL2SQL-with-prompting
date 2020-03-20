@@ -30,7 +30,8 @@ setup_ipython() {
 	export PYSPARK_DRIVER_PYTHON=ipython
 }
 
-ROLE=${ROLE:-mist-viewer}
+#ROLE=${ROLE:-mist-viewer}
+ROLE=${ROLE:-mist-data-science}
 
 CMD=$1
 shift
