@@ -1,0 +1,23 @@
+
+
+
+kafkaclient -env production -topic sle-capacity-anomaly-production -compact -rewind 1d | jq -c  'select(.site=="9aa6ecdb-ddee-41b4-a8d9-872d7962b3c1")|[.ap, .anomaly_type, .avg_nclients, .util_ap, .util_nonwifi_mean, .util_nonwifi_deviation, .util_cochannel_mean, .util_cochannel_deviation]'
+
+kafkaclient -env production -topic sle-capacity-anomaly-production -compact -rewind 1d | jq -c  'select(.site=="c23667f3-47e9-44aa-9761-de49d34ed9f9")|[.ap, .anomaly_type, .avg_nclients, .util_ap, .util_nonwifi_mean, .util_nonwifi_deviation, .util_cochannel_mean, .util_cochannel_deviation]'
+
+
+kafkaclient -env production -topic rrm-local- -rewind 1d -compact | jq -c  'select(.site_id=="c23667f3-47e9-44aa-9761-de49d34ed9f9")|.' | tee rrm-local_1.txt
+
+kafkaclient -env production -topic rrm-local- -rewind 1d -compact | jq -c  'select(.site_id=="9aa6ecdb-ddee-41b4-a8d9-872d7962b3c1")|.' | tee rrm-local_2.txt
+
+
+
+ kafkaclient -env production -topic rrm-apscan-anomaly-   -rewind 12h  -compact | jq -c 'select(.c23667f3-47e9-44aa-9761-de49d34ed9f9)|.'
+
+
+ kafkaclient -env production -topic rrm-apscan-anomaly-   -rewind 12h  -compact | jq -c 'select(.site=="c23667f3-47e9-44aa-9761-de49d34ed9f9")|.'  | tee a-1.txt
+
+ kafkaclient -env production -topic rrm-apscan-anomaly-   -rewind 12h  -compact | jq -c 'select(.site=="9aa6ecdb-ddee-41b4-a8d9-872d7962b3c1")|.'  | tee a-2.txt
+
+
+redis-cli KEYS "prefix:*" | xargs redis-cli DEL
