@@ -23,6 +23,10 @@ Feel free to build your own sub-directory.
 ```
 download  graphframes-0.7.0-spark2.3-s_2.11.jar .
  
+to AWS athena, need ROLE of mist-data-science for perimission
+``shell 
+ROLE=mist-data-science ./dev-scripts/okta_spark jupyter-notebook
+``shell
 ## IPython
 
 ```shell
