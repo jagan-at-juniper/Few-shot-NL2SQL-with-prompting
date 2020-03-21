@@ -7,6 +7,14 @@ from botocore.exceptions import ClientError
 
 
 def run_query(query, database, s3_output, region_name='us-east-1'):
+    """
+
+    :param query:  athena query
+    :param database: athena database name
+    :param s3_output: s3 bucket storing output-temporary-file
+    :param region_name: aws reagion name
+    :return: response block
+    """
     client = boto3.client('athena', region_name=region_name)
     response = client.start_query_execution(
         QueryString=query,
@@ -23,6 +31,14 @@ def run_query(query, database, s3_output, region_name='us-east-1'):
 
 
 def download_s3_file(response, s3_bucket, region_name='us-east-1', download_local_path="./"):
+    """
+
+    :param response: athena-response
+    :param s3_bucket: s3 bucket where stores files to be downloaded
+    :param region_name: aws region name
+    :param download_local_path: local path
+    :return: download filename
+    """
     if response.get('ResponseMetadata').get('HTTPStatusCode') != 200:
         print("response error!")
         return "ERROR"
@@ -47,6 +63,13 @@ def download_s3_file(response, s3_bucket, region_name='us-east-1', download_loca
 
 
 def get_ap_scan(env, site, band="5"):
+    """
+
+    :param env: env=production/staging...
+    :param site: site ID
+    :param band: band=5/24
+    :return: local filename
+    """
     today = datetime.datetime.today().strftime("%Y-%m-%d")
 
     s3_bucket = 'mist-{ENV}-athena'.format(ENV=env)
