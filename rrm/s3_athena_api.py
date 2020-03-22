@@ -99,10 +99,14 @@ def get_ap_scan(env, site, band="5"):
 
 def load_partitions(env, table):
     """
+     data partitioned daily,  this load_partions needs to be executed daily. This commands may take a few minutes.
 
     shell command:
         export AWS_DEFAULT_REGION=us-east-1
         aws athena start-query-execution --query-string "MSCK REPAIR TABLE secorapp_production.cv_ap_scans" --result-configuration "OutputLocation=s3://mist-production-athena/results/"
+
+        aws athena get-query-execution --query-execution-id 7fc6cabb-5154-4763-96d6-d690c4491248
+        
     :param env:
     :param table:
     :return:
@@ -118,8 +122,9 @@ def load_partitions(env, table):
     query = '''MSCK REPAIR TABLE "secorapp_{ENV}"."{TABLE}"'; '''.format(ENV=env, TABLE=table)
     print(query)
 
-    response = run_query(query, athena_database, s3_output_bucket, region_name)
-    pass
+    s3_output_response = run_query(query, athena_database, s3_output_bucket, region_name)
+    print(s3_output_response)
+
 
 
 def test_file():
