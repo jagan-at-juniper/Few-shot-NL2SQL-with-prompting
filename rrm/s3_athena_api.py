@@ -97,6 +97,31 @@ def get_ap_scan(env, site, band="5"):
     return download_filename
 
 
+def load_partitions(env, table):
+    """
+
+    shell command:
+        export AWS_DEFAULT_REGION=us-east-1
+        aws athena start-query-execution --query-string "MSCK REPAIR TABLE secorapp_production.cv_ap_scans" --result-configuration "OutputLocation=s3://mist-production-athena/results/"
+    :param env:
+    :param table:
+    :return:
+    """
+    s3_bucket = 'mist-{ENV}-athena'.format(ENV=env)
+    athena_database = 'secorapp_{ENV}'.format(ENV=env)
+    table = 'cv_ap_scans'
+    region_name = 'us-east-1'
+
+    s3_output_bucket = 's3://%s/results/' % s3_bucket
+    print("s3_output=", s3_output_bucket)
+
+    query = '''MSCK REPAIR TABLE "secorapp_{ENV}"."{TABLE}"'; '''.format(ENV=env, TABLE=table)
+    print(query)
+
+    response = run_query(query, athena_database, s3_output_bucket, region_name)
+    pass
+
+
 def test_file():
     # from s3_athena_api import *
     env = "production"
