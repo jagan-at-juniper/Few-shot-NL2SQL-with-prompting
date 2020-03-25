@@ -97,7 +97,7 @@ def get_ap_scan(env, site, band="5"):
     return download_filename
 
 
-def load_partitions(env, table):
+def load_partitions(env):
     """
      data partitioned daily,  this load_partions needs to be executed daily. This commands may take a few minutes.
 
@@ -106,7 +106,7 @@ def load_partitions(env, table):
         aws athena start-query-execution --query-string "MSCK REPAIR TABLE secorapp_production.cv_ap_scans" --result-configuration "OutputLocation=s3://mist-production-athena/results/"
 
         aws athena get-query-execution --query-execution-id 7fc6cabb-5154-4763-96d6-d690c4491248
-        
+
     :param env:
     :param table:
     :return:
@@ -126,7 +126,6 @@ def load_partitions(env, table):
     print(s3_output_response)
 
 
-
 def test_file():
     # from s3_athena_api import *
     env = "production"
@@ -134,3 +133,9 @@ def test_file():
     band = "5"
     download_file = get_ap_scan(env, site, band)
     print("download file=", download_file)
+
+
+# if __name__ == "main":
+#     test_file()
+# test_file()
+load_partitions("production")

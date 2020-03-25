@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #
+import pyspark
 
 s3_bucket = "s3://mist-aggregated-stats-production/"
 
