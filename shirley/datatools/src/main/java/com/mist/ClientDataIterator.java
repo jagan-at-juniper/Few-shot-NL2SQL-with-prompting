@@ -78,11 +78,14 @@ public class ClientDataIterator implements Iterator<ClientStatsAnalytics.ClientS
                 clientStatsOutBuilder.setIsActive(true);
             }
 
-//        clientStatsOutBuilder.setClientMac(wcid);
-//        clientStatsOutBuilder.setClientWcid(wcid);
-
             clientStatsOutBuilder.setClientMac(clientId);
-            clientStatsOutBuilder.setClientWcid(clientId);
+            if (wcid != null)
+                clientStatsOutBuilder.setClientWcid(wcid);
+            else
+                clientStatsOutBuilder.setClientWcid(clientId);
+
+//            clientStatsOutBuilder.setClientMac(clientId);
+//            clientStatsOutBuilder.setClientWcid(clientId);
             clientStatsOutBuilder.setClientBand(clientBand);
             clientStatsOutBuilder.setClientRadioIndex(client.getRadioIndex());
             clientStatsOutBuilder.setClientBssid(MistUtils.getMAC(client.getBssid().toByteArray()));

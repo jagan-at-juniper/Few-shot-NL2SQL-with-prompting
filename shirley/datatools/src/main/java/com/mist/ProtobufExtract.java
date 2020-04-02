@@ -42,6 +42,7 @@ import static org.apache.spark.sql.functions.callUDF;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -52,8 +53,8 @@ public class ProtobufExtract {
     private static final long serialVersionUID = 1L;
     private transient AmazonS3 s3client;
     // TODO read from cmdline
-    private static final String FeedBasePath = "s3://mist-staging-kafka-reseed/ap-stats-full-staging";
-    private static final String OutPutPath = "s3://mist-test-bucket-production/test_run";
+    private static final String FeedBasePath = "s3://mist-production-kafka-reseed/ap-stats-full-production";
+    private static final String OutPutPath = "s3://mist-test-bucket-production/shirley_test_run";
     private static final String OrgDimPath = "s3://mist-secorapp-production/dimension/org/part-*.parquet";
 
     //spark-submit  --master yarn --jars data-tools-1.0-SNAPSHOT.jar --class com.mist.ProtobufExtract ./data-tools-1.0-SNAPSHOT.jar
@@ -80,14 +81,14 @@ public class ProtobufExtract {
 
     private static UDF1 addDate = new UDF1<Long, String>() {
         public String call(final Long epoch) throws Exception {
-            DateTime dt = new DateTime(epoch);
+            DateTime dt = new DateTime(epoch / 1000);
             DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd");
             return fmt.print(dt);
         }
     };
     private static UDF1 addHour = new UDF1<Long, Integer>() {
         public Integer call(final Long epoch) throws Exception {
-            DateTime dt = new DateTime(epoch);
+            DateTime dt = new DateTime(epoch / 1000);
             return dt.getHourOfDay();
         }
     };
@@ -105,7 +106,6 @@ public class ProtobufExtract {
         options.addOption(env);
 
         CommandLineParser parser = new GnuParser();
-        String dateToRun = "";
         try {
             CommandLine cmdLine = parser.parse(options, args);
             return cmdLine;
@@ -116,7 +116,7 @@ public class ProtobufExtract {
         return null;
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, java.text.ParseException {
 
         CommandLine cmdLine = parseArgs(args);
         if (cmdLine == null)
@@ -124,12 +124,17 @@ public class ProtobufExtract {
 
         String dateToRun = cmdLine.getOptionValue("date");
         String env = cmdLine.getOptionValue("env");
-
         System.out.println(" Running date = " + dateToRun + " env = " + env);
 
+        Date inputDate =new SimpleDateFormat("yyyyMMdd").parse(dateToRun);
+        String outputDateStr = new SimpleDateFormat("yyyy-MM-dd").format(inputDate);
+
         final String dateForLambda = dateToRun;
-        String hourToRun = "0";
-        String inputPath = FeedBasePath + "/" + dateToRun + "/" + hourToRun + "/*/*";
+        int hourToRun = Integer.valueOf("1");
+        String outputHourStr = String.format("ht=%02d", hourToRun);
+
+
+        String inputPath = FeedBasePath + "/" + dateToRun + "/" + hourToRun + "/0e0303dc-a46e-44c1-ba50-68227dd91b25/*";
 
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App");
@@ -156,7 +161,7 @@ public class ProtobufExtract {
 //        List<List<String>> pathBatch = Lists.partition(paths, 100);
 
         final StructType ss = getOutputSchema(spark);
-        Map<String, String> orgKeys = getOrgKeys(spark);
+        final Map<String, String> orgKeys = getOrgKeys(spark);
 
         JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
         JavaPairRDD<org.apache.hadoop.io.BytesWritable, org.apache.hadoop.io.BytesWritable> rawRDD =
@@ -190,9 +195,12 @@ public class ProtobufExtract {
         ).flatMap(
                 new FlatMapFunction<ApstatsAnalyticsRaw.APStats, ClientStatsAnalytics.ClientStatsAnalyticsOut>() {
 
+
                     // For each client emit one record
                     public Iterator<ClientStatsAnalytics.ClientStatsAnalyticsOut> call(ApstatsAnalyticsRaw.APStats clientStatsAnalyticsRaw) throws Exception {
-                        return new ClientDataIterator(clientStatsAnalyticsRaw, "dummy");
+                        String org_id =  MistUtils.getUUID(clientStatsAnalyticsRaw.getOrgId());
+                        String key = orgKeys.get(org_id);
+                        return new ClientDataIterator(clientStatsAnalyticsRaw, key);
                     }
                 }
         );
@@ -218,7 +226,12 @@ public class ProtobufExtract {
         // convert to DF and save as parquet
         Dataset<Row> ds = spark.sqlContext().createDataFrame(finalRdd, ss);
 
-        ds.repartition(5).write().parquet("s3://mist-test-bucket/shirley_test_run/" + dateToRun + "/" + hourToRun);
+
+        String outPath = OutPutPath + "/dt=" + outputDateStr + "/" + outputHourStr;
+        System.out.println("Save data to " + outPath);
+        // format output path
+        ds.repartition(5).write().parquet(outPath);
+        
 //        Dataset<Row> data = ds.withColumn("dt", callUDF("addDate", ds.col("terminator_timestamp")))
 //                .withColumn("hr", callUDF("addHour", ds.col("terminator_timestamp")));
 //        System.out.println("Number of lines in file = " + data.count());
@@ -227,6 +240,7 @@ public class ProtobufExtract {
 //
 //        // TODO the ds needs to repartition to x number of partitions and save the final files in a path with dt=xxxx/hr=xx format
 //        data.repartition(data.col("dt"), data.col("hr")).write().partitionBy("dt", "hr").parquet("s3://mist-test-bucket/shirley_test_run/");
+//
     }
 
 
