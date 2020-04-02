@@ -6,12 +6,15 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.Timestamps;
 import com.mist.mobius.common.MistUtils;
 import com.mist.mobius.generated.ApstatsAnalyticsRaw;
 import com.mist.mobius.generated.ClientStatsAnalyticsRaw;
 import com.mist.mobius.generated.ClientStatsAnalytics;
+import org.apache.commons.cli.*;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.spark.SparkConf;
@@ -26,9 +29,15 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.ByteArray;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import scala.Tuple2;
+
+import static org.apache.spark.sql.functions.callUDF;
 
 
 import java.io.ByteArrayOutputStream;
@@ -38,19 +47,54 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static com.mist.ClientDataIterator.mac2wcid;
 
 public class ProtobufExtract {
     private static final long serialVersionUID = 1L;
     private transient AmazonS3 s3client;
+    // TODO read from cmdline
+    private static final String FeedBasePath = "s3://mist-production-kafka-reseed/ap-stats-full-production";
+    private static final String OutPutPath = "s3://mist-test-bucket-production/test_run";
+    private static final String OrgDimPath = "s3://mist-secorapp-production/dimension/org/part-*.parquet";
 
     //spark-submit  --master yarn --jars data-tools-1.0-SNAPSHOT.jar --class com.mist.ProtobufExtract ./data-tools-1.0-SNAPSHOT.jar
     //
 
+    private static UDF1 addDate = new UDF1<Long, String>() {
+        public String call(final Long epoch) throws Exception {
+            DateTime dt = new DateTime(epoch);
+            DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd");
+            return fmt.print(dt);
+        }
+    };
+    private static UDF1 addHour = new UDF1<Long, Integer>() {
+        public Integer call(final Long epoch) throws Exception {
+            DateTime dt = new DateTime(epoch);
+            return dt.getHourOfDay();
+        }
+    };
 
     public static void main(String[] args) throws IOException {
 
+        // Option parsing
+        Options options = new Options();
+        Option runDate = new Option("d", "date", true, "Date to run in yyyymmdd format");
+        // Option org_id = new Option("o", "org_id", true, "Org_id");
+        runDate.setRequired(true);
+        options.addOption(runDate);
+        CommandLineParser parser = new GnuParser();
+        String dateToRun = "";
+        try {
+            CommandLine cmdLine = parser.parse(options, args);
+            dateToRun = cmdLine.getOptionValue("date");
+        } catch (ParseException exp) {
+            System.out.println(exp.getMessage());
+            System.exit(1);
+        }
+        final String dateForLambda = dateToRun;
+        String inputPath = FeedBasePath + "/" + dateToRun + "/0/c1cac1c4-1753-4dde-a065-e17a1c305c2d/*";
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App");
 
@@ -67,7 +111,13 @@ public class ProtobufExtract {
                 .appName("Back Fill Data")
                 .config(sparkConf)
                 .getOrCreate();
+        spark.udf().register("addDate", addDate, DataTypes.StringType);
+        spark.udf().register("addHour", addHour, DataTypes.IntegerType);
 
+        Dataset<Row> orgDimData = spark.read().parquet(OrgDimPath).select("id", "secret");
+        List<Row> orgs = orgDimData.collectAsList();
+        List<String> paths = orgs.stream().map(r -> FeedBasePath + "/" + dateForLambda + "/*/" + r.getString(0) + "/*/*").collect(Collectors.toList());
+        List<List<String>> pathBatch = Lists.partition(paths, 100);
 
         Dataset<Row> clientDs = spark.sqlContext().read().parquet(
                 "s3://mist-secorapp-production/client-stats-analytics/client-stats-analytics-production/dt=2020-03-15/hr=01/1_0_00000000013347518454.parquet");
@@ -76,8 +126,8 @@ public class ProtobufExtract {
         JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
         JavaPairRDD<org.apache.hadoop.io.BytesWritable, org.apache.hadoop.io.BytesWritable> rawRDD =
                 jsc.sequenceFile(
-                        "s3://mist-production-kafka-reseed/ap-stats-full-production/20200301/19/026c6021-8ac4-4712-bb6a-2a0abd5491ab/9a675073-23f9-49c9-bb4d-78d750fef1f3",
-                      org.apache.hadoop.io.BytesWritable.class, org.apache.hadoop.io.BytesWritable.class);
+                        inputPath,
+                        org.apache.hadoop.io.BytesWritable.class, org.apache.hadoop.io.BytesWritable.class);
 
 
         JavaRDD<ClientStatsAnalytics.ClientStatsAnalyticsOut> newRdd = rawRDD.map(
@@ -129,14 +179,13 @@ public class ProtobufExtract {
 
         // convert to DF and save as parquet
         Dataset<Row> ds = spark.sqlContext().createDataFrame(finalRdd, ss);
-
-        System.out.println("Number of lines in file = " + ds.count());
-        System.out.println("First Record in file = " + ds.first());
-
+        Dataset<Row> data = ds.withColumn("dt", callUDF("addDate", ds.col("when")))
+                .withColumn("hr", callUDF("addHour", ds.col("when")));
+        System.out.println("Number of lines in file = " + data.count());
+        System.out.println("First Record in file = " + data.first());
         // TODO the ds needs to repartition to x number of partitions and save the final files in a path with dt=xxxx/hr=xx format
-//        ds.write().parquet("s3://mist-test-bucket-production/test_run/");
+        //data.repartition(data.col("dt"), data.col("hr")).write().partitionBy("dt", "hr").parquet("s3://mist-test-bucket-production/test_run/");
     }
-
 
 
 }
