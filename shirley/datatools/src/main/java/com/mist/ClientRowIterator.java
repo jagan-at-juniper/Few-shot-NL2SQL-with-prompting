@@ -92,9 +92,9 @@ public class ClientRowIterator implements Iterator<Row> {
                 current.getUptime(),  // 5
                 current.getInterval(),
                 current.getWhen(),
-                dd,  // 8 radios
-                current.getWlansList(),
-                current.getAppSsList(),    // 10
+                null,  // 8 radios
+                current.getWlansList().size() > 0 ? current.getWlansList(): null,
+                current.getAppSsList().size() > 0 ? current.getAppSsList(): null,    // 10
                 current.getTerminatorRemoteAddr(), // 11
                 current.getTerminatorTimestamp(),  // 12
                 current.getClientMac(),  // 13
