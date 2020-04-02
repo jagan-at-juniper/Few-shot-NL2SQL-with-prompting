@@ -48,7 +48,7 @@ public class ClientRowIterator implements Iterator<Row> {
             if (prev == null) {
                 prev = data.get(index);
                 row = toRow(current, null);
-            } else if ( prev.getUptime()  < current.getUptime()) {
+            } else if ( prev.getUptime()  <= current.getUptime()) {
                     row = toRow(current, prev);
             } else
                 row = toRow(current, null);
@@ -60,6 +60,10 @@ public class ClientRowIterator implements Iterator<Row> {
         }
 
         return row;
+    }
+
+    public void remove() {
+
     }
 
 
@@ -110,7 +114,7 @@ public class ClientRowIterator implements Iterator<Row> {
                 current.getClientPerAntennaRssiList().toArray(),
                 current.getClientAvgRssi(),
                 current.getClientTxBitRate(),    // 25
-                current.getClientTxUnicastBytes(),
+                prev != null ? safeSetLong(current.getClientTxUnicastBytes(), prev.getClientTxUnicastBytes()) : current.getClientTxUnicastBytes(), // 26
                 prev != null ? safeSetInteger(current.getClientTxUnicastPkts(), prev.getClientTxUnicastPkts()) : current.getClientTxUnicastPkts(),
                 prev != null ? safeSetInteger(current.getClientTxPktsSent(), prev.getClientTxPktsSent()) : current.getClientTxPktsSent(),
                 prev != null ? safeSetInteger(current.getClientTxRetries(), prev.getClientTxRetries()) : current.getClientTxRetries(),
@@ -121,7 +125,7 @@ public class ClientRowIterator implements Iterator<Row> {
                 prev != null ? safeSetInteger(current.getClientTxRetryExhausted(), prev.getClientTxRetryExhausted()) : current.getClientTxRetryExhausted(),
                 current.getClientTxRateFallBack(),   //35
                 current.getClientRxBitRate(),
-                prev != null ? safeSetLong(current.getClientRxBytes(), prev.getClientRxBytes()) : current.getClientRxBytes(),
+                prev != null ? safeSetLong(current.getClientRxBytes(), prev.getClientRxBytes()) : current.getClientRxBytes(), //37
                 prev != null ? safeSetInteger(current.getClientRxPkts(), prev.getClientRxPkts()) : current.getClientRxPkts(),
                 current.getClientRxMcastPkts(),
                 current.getClientRxMcastBytes(),  //40

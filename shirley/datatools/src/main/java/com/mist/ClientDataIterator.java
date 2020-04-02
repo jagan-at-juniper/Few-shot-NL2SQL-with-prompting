@@ -72,6 +72,12 @@ public class ClientDataIterator implements Iterator<ClientStatsAnalytics.ClientS
             String wcid = mac2wcid(sert, clientId.replaceAll("-", ""));
             String clientBand = MistUtils.getBand(client.getBand());
 
+            if ((long)client.getInactiveTimeMilliSec() > 70 * 1000) {
+                clientStatsOutBuilder.setIsActive(false);
+            } else {
+                clientStatsOutBuilder.setIsActive(true);
+            }
+
 //        clientStatsOutBuilder.setClientMac(wcid);
 //        clientStatsOutBuilder.setClientWcid(wcid);
 

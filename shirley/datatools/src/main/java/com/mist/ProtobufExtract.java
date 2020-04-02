@@ -42,10 +42,7 @@ import static org.apache.spark.sql.functions.callUDF;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -55,12 +52,31 @@ public class ProtobufExtract {
     private static final long serialVersionUID = 1L;
     private transient AmazonS3 s3client;
     // TODO read from cmdline
-    private static final String FeedBasePath = "s3://mist-production-kafka-reseed/ap-stats-full-production";
+    private static final String FeedBasePath = "s3://mist-staging-kafka-reseed/ap-stats-full-staging";
     private static final String OutPutPath = "s3://mist-test-bucket-production/test_run";
     private static final String OrgDimPath = "s3://mist-secorapp-production/dimension/org/part-*.parquet";
 
     //spark-submit  --master yarn --jars data-tools-1.0-SNAPSHOT.jar --class com.mist.ProtobufExtract ./data-tools-1.0-SNAPSHOT.jar
     //
+
+    private static StructType getOutputSchema(SparkSession spark) {
+
+        Dataset<Row> clientDs = spark.sqlContext().read().parquet(
+                "s3://mist-secorapp-production/client-stats-analytics/client-stats-analytics-production/dt=2020-03-15/hr=01/1_0_00000000013347518454.parquet");
+        return clientDs.toDF().schema();
+    }
+
+    private static Map<String, String> getOrgKeys(SparkSession spark) {
+        Dataset<Row> keyDs = spark.sqlContext().read().parquet("s3://mist-data-science-dev/shirley/org_key");
+        List<Row> data = keyDs.collectAsList();
+        Map<String, String> orgKeys = new HashMap<String, String>();
+        for (Row r: data) {
+            int inx = r.fieldIndex("key");
+            int org_inx = r.fieldIndex("org_id");
+            orgKeys.put(r.getString(org_inx), r.getString(inx));
+        }
+        return orgKeys;
+    }
 
     private static UDF1 addDate = new UDF1<Long, String>() {
         public String call(final Long epoch) throws Exception {
@@ -76,25 +92,45 @@ public class ProtobufExtract {
         }
     };
 
-    public static void main(String[] args) throws IOException {
+
+    public static CommandLine parseArgs(String[] args) {
 
         // Option parsing
         Options options = new Options();
         Option runDate = new Option("d", "date", true, "Date to run in yyyymmdd format");
-        // Option org_id = new Option("o", "org_id", true, "Org_id");
+        Option env = new Option("env", "env", true, "staging or production");
+        env.setRequired(true);
         runDate.setRequired(true);
         options.addOption(runDate);
+        options.addOption(env);
+
         CommandLineParser parser = new GnuParser();
         String dateToRun = "";
         try {
             CommandLine cmdLine = parser.parse(options, args);
-            dateToRun = cmdLine.getOptionValue("date");
+            return cmdLine;
         } catch (ParseException exp) {
             System.out.println(exp.getMessage());
             System.exit(1);
         }
+        return null;
+    }
+
+    public static void main(String[] args) throws IOException {
+
+        CommandLine cmdLine = parseArgs(args);
+        if (cmdLine == null)
+            System.exit(1);
+
+        String dateToRun = cmdLine.getOptionValue("date");
+        String env = cmdLine.getOptionValue("env");
+
+        System.out.println(" Running date = " + dateToRun + " env = " + env);
+
         final String dateForLambda = dateToRun;
-        String inputPath = FeedBasePath + "/" + dateToRun + "/0/c1cac1c4-1753-4dde-a065-e17a1c305c2d/*";
+        String hourToRun = "0";
+        String inputPath = FeedBasePath + "/" + dateToRun + "/" + hourToRun + "/*/*";
+
         SparkConf sparkConf = new SparkConf()
                 .setAppName("Example Spark App");
 
@@ -116,12 +152,11 @@ public class ProtobufExtract {
 
         Dataset<Row> orgDimData = spark.read().parquet(OrgDimPath).select("id", "secret");
         List<Row> orgs = orgDimData.collectAsList();
-        List<String> paths = orgs.stream().map(r -> FeedBasePath + "/" + dateForLambda + "/*/" + r.getString(0) + "/*/*").collect(Collectors.toList());
-        List<List<String>> pathBatch = Lists.partition(paths, 100);
+//        List<String> paths = orgs.stream().map(r -> FeedBasePath + "/" + dateForLambda + "/*/" + r.getString(0) + "/*/*").collect(Collectors.toList());
+//        List<List<String>> pathBatch = Lists.partition(paths, 100);
 
-        Dataset<Row> clientDs = spark.sqlContext().read().parquet(
-                "s3://mist-secorapp-production/client-stats-analytics/client-stats-analytics-production/dt=2020-03-15/hr=01/1_0_00000000013347518454.parquet");
-        final StructType ss = clientDs.toDF().schema();
+        final StructType ss = getOutputSchema(spark);
+        Map<String, String> orgKeys = getOrgKeys(spark);
 
         JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
         JavaPairRDD<org.apache.hadoop.io.BytesWritable, org.apache.hadoop.io.BytesWritable> rawRDD =
@@ -136,17 +171,20 @@ public class ProtobufExtract {
                         // convert each record in sequence file to protobuf java class
                         BytesWritable bytesWritable = v1._2;
                         ByteString bs = ByteString.copyFrom(bytesWritable.getBytes(), 0, bytesWritable.getLength());
+                        try {
+                            ApstatsAnalyticsRaw.APStats clientStatsAnalyticsRaw = ApstatsAnalyticsRaw.APStats.parseFrom(bs);
 
-                        ApstatsAnalyticsRaw.APStats clientStatsAnalyticsRaw = ApstatsAnalyticsRaw.APStats.parseFrom(bs);
-
-                        return clientStatsAnalyticsRaw;
+                            return clientStatsAnalyticsRaw;
+                        } catch (Exception e) {
+                            return null;
+                        }
                     }
                 }
         ).filter(
                 new Function<ApstatsAnalyticsRaw.APStats, Boolean>() {
                     // Remove the data without clients
                     public Boolean call(ApstatsAnalyticsRaw.APStats apStats) throws Exception {
-                        return apStats.getClientsCount() > 0;
+                        return apStats != null && apStats.getClientsCount() > 0;
                     }
                 }
         ).flatMap(
@@ -179,12 +217,16 @@ public class ProtobufExtract {
 
         // convert to DF and save as parquet
         Dataset<Row> ds = spark.sqlContext().createDataFrame(finalRdd, ss);
-        Dataset<Row> data = ds.withColumn("dt", callUDF("addDate", ds.col("when")))
-                .withColumn("hr", callUDF("addHour", ds.col("when")));
-        System.out.println("Number of lines in file = " + data.count());
-        System.out.println("First Record in file = " + data.first());
-        // TODO the ds needs to repartition to x number of partitions and save the final files in a path with dt=xxxx/hr=xx format
-        //data.repartition(data.col("dt"), data.col("hr")).write().partitionBy("dt", "hr").parquet("s3://mist-test-bucket-production/test_run/");
+
+        ds.repartition(5).write().parquet("s3://mist-test-bucket/shirley_test_run/" + dateToRun + "/" + hourToRun);
+//        Dataset<Row> data = ds.withColumn("dt", callUDF("addDate", ds.col("terminator_timestamp")))
+//                .withColumn("hr", callUDF("addHour", ds.col("terminator_timestamp")));
+//        System.out.println("Number of lines in file = " + data.count());
+//        System.out.println("First Record in file = " + data.first());
+//
+//
+//        // TODO the ds needs to repartition to x number of partitions and save the final files in a path with dt=xxxx/hr=xx format
+//        data.repartition(data.col("dt"), data.col("hr")).write().partitionBy("dt", "hr").parquet("s3://mist-test-bucket/shirley_test_run/");
     }
 
 
