@@ -1,22 +1,13 @@
 package com.mist;
 
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.util.Timestamps;
 import com.mist.mobius.common.MistUtils;
 import com.mist.mobius.generated.ApstatsAnalyticsRaw;
-import com.mist.mobius.generated.ClientStatsAnalyticsRaw;
 import com.mist.mobius.generated.ClientStatsAnalytics;
 import org.apache.commons.cli.*;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.ByteWritable;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.log4j.Logger;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
@@ -28,37 +19,27 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
-import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.ByteArray;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import scala.Tuple2;
 
-import static org.apache.spark.sql.functions.callUDF;
-
-
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
-import static com.mist.ClientDataIterator.mac2wcid;
-
-public class ProtobufExtract {
+public class ProtobufExtract implements Serializable {
     private static final long serialVersionUID = 1L;
-    private transient AmazonS3 s3client;
-    // TODO read from cmdline
-    private static final String FeedBasePath = "s3://mist-production-kafka-reseed/ap-stats-full-production";
-    private static final String OutPutPath = "s3://mist-test-bucket-production/shirley_test_run";
-    private static final String OrgDimPath = "s3://mist-secorapp-production/dimension/org/part-*.parquet";
 
-    //spark-submit  --master yarn --jars data-tools-1.0-SNAPSHOT.jar --class com.mist.ProtobufExtract ./data-tools-1.0-SNAPSHOT.jar
-    //
+    private static final Logger logger = Logger.getLogger(ProtobufExtract.class);
+
+    // TODO read from cmdline
+    public static final String FeedBasePath = "s3://mist-production-kafka-reseed/ap-stats-full-production";
+    public static final String OutPutPath = "s3://mist-test-bucket-production/shirley_test_run";
+    public static final String OrgDimPath = "s3://mist-secorapp-production/dimension/org/part-*.parquet";
+    public static final String SourcePath = "s3://mist-test-bucket-production/backfill-ipaths/date=";
 
     private static StructType getOutputSchema(SparkSession spark) {
 
@@ -86,6 +67,7 @@ public class ProtobufExtract {
             return fmt.print(dt);
         }
     };
+
     private static UDF1 addHour = new UDF1<Long, Integer>() {
         public Integer call(final Long epoch) throws Exception {
             DateTime dt = new DateTime(epoch / 1000);
@@ -93,6 +75,28 @@ public class ProtobufExtract {
         }
     };
 
+    private static Map<Integer, List<String>> getInputPaths(SparkSession spark, String inputDate) {
+
+        Map<Integer, List<String>> pathKeys = new HashMap<>();
+        Dataset<Row> keyDs = spark.sqlContext().read().parquet("s3://mist-test-bucket-production/backfill-ipaths/date=" + inputDate);
+        List<Row> data = keyDs.collectAsList();
+
+        for (Row r: data) {
+            int inx = r.fieldIndex("key");
+            String p = r.getString(inx);
+            String[] parts = p.split("/");
+
+            Integer hour = Integer.valueOf(parts[2]);
+            if (pathKeys.containsKey(hour))
+                pathKeys.get(hour).add(p);
+            else {
+                List<String> paths = new ArrayList<>();
+                paths.add(p);
+                pathKeys.put(hour, paths);
+            }
+        }
+        return pathKeys;
+    }
 
     public static CommandLine parseArgs(String[] args) {
 
@@ -100,10 +104,14 @@ public class ProtobufExtract {
         Options options = new Options();
         Option runDate = new Option("d", "date", true, "Date to run in yyyymmdd format");
         Option env = new Option("env", "env", true, "staging or production");
+        Option batchSize = new Option("batch", "batch", true, "staging or production");
+
         env.setRequired(true);
         runDate.setRequired(true);
+        batchSize.setRequired(true);
         options.addOption(runDate);
         options.addOption(env);
+        options.addOption(batchSize);
 
         CommandLineParser parser = new GnuParser();
         try {
@@ -116,54 +124,10 @@ public class ProtobufExtract {
         return null;
     }
 
-    public static void main(String[] args) throws IOException, java.text.ParseException {
-
-        CommandLine cmdLine = parseArgs(args);
-        if (cmdLine == null)
-            System.exit(1);
-
-        String dateToRun = cmdLine.getOptionValue("date");
-        String env = cmdLine.getOptionValue("env");
-        System.out.println(" Running date = " + dateToRun + " env = " + env);
-
-        Date inputDate =new SimpleDateFormat("yyyyMMdd").parse(dateToRun);
-        String outputDateStr = new SimpleDateFormat("yyyy-MM-dd").format(inputDate);
-
-        final String dateForLambda = dateToRun;
-        int hourToRun = Integer.valueOf("1");
-        String outputHourStr = String.format("ht=%02d", hourToRun);
-
-
-        String inputPath = FeedBasePath + "/" + dateToRun + "/" + hourToRun + "/0e0303dc-a46e-44c1-ba50-68227dd91b25/*";
-
-        SparkConf sparkConf = new SparkConf()
-                .setAppName("Example Spark App");
-
-        sparkConf.set("spark.serializer", KryoSerializer.class.getName());
-
-        List<Class<?>> clses = Arrays.<Class<?>>asList(ApstatsAnalyticsRaw.APStats.class,
-                ApstatsAnalyticsRaw.APStats.class,
-                ClientDataIterator.class);
-        sparkConf.registerKryoClasses((Class<?>[]) clses.toArray());
-
-
-        SparkSession spark = SparkSession
-                .builder()
-                .appName("Back Fill Data")
-                .config(sparkConf)
-                .getOrCreate();
-        spark.udf().register("addDate", addDate, DataTypes.StringType);
-        spark.udf().register("addHour", addHour, DataTypes.IntegerType);
-
-        Dataset<Row> orgDimData = spark.read().parquet(OrgDimPath).select("id", "secret");
-        List<Row> orgs = orgDimData.collectAsList();
-//        List<String> paths = orgs.stream().map(r -> FeedBasePath + "/" + dateForLambda + "/*/" + r.getString(0) + "/*/*").collect(Collectors.toList());
-//        List<List<String>> pathBatch = Lists.partition(paths, 100);
-
-        final StructType ss = getOutputSchema(spark);
-        final Map<String, String> orgKeys = getOrgKeys(spark);
-
-        JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    public static void processData(SparkSession spark, JavaSparkContext jsc,
+                                   String inputPath,
+                                   final Map<String, String>orgKeys, final StructType ss,
+                                   String outputDateStr, String outputHourStr, int batchId) {
         JavaPairRDD<org.apache.hadoop.io.BytesWritable, org.apache.hadoop.io.BytesWritable> rawRDD =
                 jsc.sequenceFile(
                         inputPath,
@@ -195,7 +159,6 @@ public class ProtobufExtract {
         ).flatMap(
                 new FlatMapFunction<ApstatsAnalyticsRaw.APStats, ClientStatsAnalytics.ClientStatsAnalyticsOut>() {
 
-
                     // For each client emit one record
                     public Iterator<ClientStatsAnalytics.ClientStatsAnalyticsOut> call(ApstatsAnalyticsRaw.APStats clientStatsAnalyticsRaw) throws Exception {
                         String org_id =  MistUtils.getUUID(clientStatsAnalyticsRaw.getOrgId());
@@ -226,22 +189,76 @@ public class ProtobufExtract {
         // convert to DF and save as parquet
         Dataset<Row> ds = spark.sqlContext().createDataFrame(finalRdd, ss);
 
-
-        String outPath = OutPutPath + "/dt=" + outputDateStr + "/" + outputHourStr;
+        String outPath = OutPutPath + "/dt=" + outputDateStr + "/" + outputHourStr + "/" + "batch=" + batchId;
         System.out.println("Save data to " + outPath);
         // format output path
-        ds.repartition(5).write().parquet(outPath);
-        
-//        Dataset<Row> data = ds.withColumn("dt", callUDF("addDate", ds.col("terminator_timestamp")))
-//                .withColumn("hr", callUDF("addHour", ds.col("terminator_timestamp")));
-//        System.out.println("Number of lines in file = " + data.count());
-//        System.out.println("First Record in file = " + data.first());
-//
-//
-//        // TODO the ds needs to repartition to x number of partitions and save the final files in a path with dt=xxxx/hr=xx format
-//        data.repartition(data.col("dt"), data.col("hr")).write().partitionBy("dt", "hr").parquet("s3://mist-test-bucket/shirley_test_run/");
-//
+        ds.repartition(3).write().parquet(outPath);
     }
 
+    public static String composeInputPathString(List<String>inputPath, int startInx, int endInx) {
+
+        StringBuffer buffer = new StringBuffer();
+        for (int i = startInx; i < endInx && i < inputPath.size(); i++) {
+            buffer.append("s3://mist-production-kafka-reseed/" + inputPath.get(i) + ",");
+        }
+        buffer.deleteCharAt(buffer.length() - 1);
+        return buffer.toString();
+    }
+
+    public static void main(String[] args) throws IOException, java.text.ParseException {
+
+        CommandLine cmdLine = parseArgs(args);
+        if (cmdLine == null)
+            System.exit(1);
+
+        String dateToRun = cmdLine.getOptionValue("date");
+        String env = cmdLine.getOptionValue("env");
+        int batchSize = Integer.valueOf(cmdLine.getOptionValue("batch"));
+
+        logger.info(" Running date = " + dateToRun + " env = " + env + " batch_size = " + batchSize);
+
+        Date inputDate =new SimpleDateFormat("yyyyMMdd").parse(dateToRun);
+        String outputDateStr = new SimpleDateFormat("yyyy-MM-dd").format(inputDate);
+
+        final String dateForLambda = dateToRun;
+
+        SparkConf sparkConf = new SparkConf()
+                .set("spark.serializer", KryoSerializer.class.getName());
+
+        List<Class<?>> clses = Arrays.<Class<?>>asList(
+                ApstatsAnalyticsRaw.APStats.class,
+                ApstatsAnalyticsRaw.APStats.class,
+                ClientDataIterator.class);
+        sparkConf.registerKryoClasses((Class<?>[]) clses.toArray());
+
+        final SparkSession spark = SparkSession
+                .builder()
+                .appName("Back Fill date=" + inputDate)
+                .config(sparkConf)
+                .getOrCreate();
+
+        final StructType ss = getOutputSchema(spark);
+        final Map<String, String> orgKeys = getOrgKeys(spark);
+        final Map<Integer, List<String>> inputPathsHourMap = getInputPaths(spark, dateToRun);
+        final JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
+
+//        ThreadPoolExecutor poolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
+
+        for(int hh=0; hh < 24; hh++) {
+
+
+            List<String> inputPaths = inputPathsHourMap.get(hh);
+            inputPaths.sort( Comparator.comparing( String::toString ) );
+            String outputHourStr = String.format("ht=%02d", hh);
+            System.out.println("Starting process hour " + hh + " with file count " + inputPaths.size());
+
+            for (int i = 0; i < inputPaths.size(); i += batchSize) {
+                String pathStr = composeInputPathString(inputPaths, i, i + batchSize);
+                processData(spark, jsc, pathStr, orgKeys, ss, outputDateStr, outputHourStr, i);
+                logger.info("Successfully submit hour " + hh + " batch " + i );
+            }
+        }
+
+    }
 
 }
