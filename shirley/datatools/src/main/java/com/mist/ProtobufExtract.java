@@ -105,13 +105,17 @@ public class ProtobufExtract implements Serializable {
         Option runDate = new Option("d", "date", true, "Date to run in yyyymmdd format");
         Option env = new Option("env", "env", true, "staging or production");
         Option batchSize = new Option("batch", "batch", true, "staging or production");
+        Option runHours = new Option("h", "hours", true, "Hours to run");
 
         env.setRequired(true);
         runDate.setRequired(true);
         batchSize.setRequired(true);
+        runHours.setRequired(false);
+
         options.addOption(runDate);
         options.addOption(env);
         options.addOption(batchSize);
+        options.addOption(runHours);
 
         CommandLineParser parser = new GnuParser();
         try {
@@ -190,7 +194,7 @@ public class ProtobufExtract implements Serializable {
         Dataset<Row> ds = spark.sqlContext().createDataFrame(finalRdd, ss);
 
         String outPath = OutPutPath + "/dt=" + outputDateStr + "/" + outputHourStr + "/" + "batch=" + batchId;
-        System.out.println("Save data to " + outPath);
+        logger.error("Save data to " + outPath);
         // format output path
         ds.repartition(3).write().parquet(outPath);
     }
@@ -205,6 +209,21 @@ public class ProtobufExtract implements Serializable {
         return buffer.toString();
     }
 
+    public static List<Integer> parseRunHours(String hoursStr) {
+        List<Integer> hours = new ArrayList<>();
+
+        if ( hoursStr == null || hoursStr.length() == 0){
+            for(int i = 0; i < 24; i++)
+                hours.add(i);
+        } else{
+            String[] parts = hoursStr.split(",");
+            for(String p: parts) {
+                hours.add(Integer.valueOf(p.trim()));
+            }
+        }
+        return hours;
+    }
+
     public static void main(String[] args) throws IOException, java.text.ParseException {
 
         CommandLine cmdLine = parseArgs(args);
@@ -215,7 +234,10 @@ public class ProtobufExtract implements Serializable {
         String env = cmdLine.getOptionValue("env");
         int batchSize = Integer.valueOf(cmdLine.getOptionValue("batch"));
 
-        logger.info(" Running date = " + dateToRun + " env = " + env + " batch_size = " + batchSize);
+        List<Integer> hours = parseRunHours(cmdLine.getOptionValue("hours"));
+
+        logger.error(" Running date = " + dateToRun + " env = " + env + " batch_size = " + batchSize);
+        logger.error(" Running hours = " + hours);
 
         Date inputDate =new SimpleDateFormat("yyyyMMdd").parse(dateToRun);
         String outputDateStr = new SimpleDateFormat("yyyy-MM-dd").format(inputDate);
@@ -242,20 +264,17 @@ public class ProtobufExtract implements Serializable {
         final Map<Integer, List<String>> inputPathsHourMap = getInputPaths(spark, dateToRun);
         final JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
-//        ThreadPoolExecutor poolExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
-
-        for(int hh=0; hh < 24; hh++) {
-
+        for(int hh: hours) {
 
             List<String> inputPaths = inputPathsHourMap.get(hh);
             inputPaths.sort( Comparator.comparing( String::toString ) );
             String outputHourStr = String.format("ht=%02d", hh);
-            System.out.println("Starting process hour " + hh + " with file count " + inputPaths.size());
+            logger.error("Starting process hour " + hh + " with file count " + inputPaths.size());
 
             for (int i = 0; i < inputPaths.size(); i += batchSize) {
                 String pathStr = composeInputPathString(inputPaths, i, i + batchSize);
                 processData(spark, jsc, pathStr, orgKeys, ss, outputDateStr, outputHourStr, i);
-                logger.info("Successfully submit hour " + hh + " batch " + i );
+                logger.error("Successfully submit hour " + hh + " batch " + i );
             }
         }
 
