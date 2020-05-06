@@ -29,6 +29,7 @@ print (f"Running the action report for {date_string}")
 
 conf = SparkConf().setAppName(f"Entity Action Report For Date {date_string}")
 sc = SparkContext(conf=conf)
+spark = SparkSession(sc)
 
 def validate(date_string):
     try:
