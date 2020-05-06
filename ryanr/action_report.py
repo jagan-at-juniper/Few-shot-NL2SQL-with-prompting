@@ -10,11 +10,25 @@ from pyspark.sql.functions import explode
 from datetime import datetime, timedelta
 import sys
 
-date_string = sys.argv[0]
+
+import argparse
+
+# Instantiate the parser
+parser = argparse.ArgumentParser(description='Optional app description')
+# Required positional argument
+parser.add_argument('pos_arg', type=str,
+                    help='A required integer positional argument')
+
+args = parser.parse_args()
+date_string = args.pos_arg
+# sys.argv[0]
 print (f"Running the action report for {date_string}")
 
 # d = datetime.today() - timedelta(days=1)
 # date_string = d.strftime('%Y-%m-%d')
+
+conf = SparkConf().setAppName(f"Entity Action Report For Date {date_string}")
+sc = SparkContext(conf=conf)
 
 def validate(date_string):
     try:
