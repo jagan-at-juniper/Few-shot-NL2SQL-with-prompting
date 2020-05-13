@@ -1,42 +1,34 @@
 from pyspark import SparkConf, SparkContext
 from pyspark.sql import SparkSession
-import sys
 import json
-from pyspark.sql import Row
-from functools import reduce
-from pyspark.sql import DataFrame
-from datetime import datetime
 from pyspark.sql.functions import explode, split
 from datetime import datetime, timedelta
 import argparse
 
-
-def setup_spark_configs():
-    try:
-        ## Spark Submit Stuff
-        parser = argparse.ArgumentParser(description='Optional app description')
-        parser.add_argument('pos_arg', type=str,
-                          help='A required integer positional argument')
-        args = parser.parse_args()
-        date = validate(args.pos_arg)
-        conf = SparkConf().setAppName(f"Entity Action Report For Date {date}")
-        sc = SparkContext(conf=conf)
-        spark = SparkSession(sc)
-    except:
-        print("Running this as a spark shell, filling date variable with yesterdays date")
-        d = datetime.today() - timedelta(days=1)
-        date = d.strftime('%Y-%m-%d')
-        conf = SparkConf().setAppName(f"Entity Action Report For Date {date}")
-    finally:
-      print (f"Running the action report for {date}")
-
 def validate(date):
     try:
-        datetime.datetime.strptime(date, '%Y-%m-%d')
+        datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
         raise ValueError("Incorrect data format, should be YYYY-MM-DD")
 
-def flatten_action_data (base_action_rdd):
+def get_run_date():
+    try:
+        parser = argparse.ArgumentParser(description='Optional app description')
+        parser.add_argument('pos_arg', type=str, help='A required integer positional argument')
+        args = parser.parse_args()
+        validate(args.pos_arg)
+        date = args.pos_arg
+        print("Parsed input date, date format looks correct")
+        return date
+    except:
+        print("Excepting input arg error by setting run date equal to yesterdays")
+        d = datetime.today() - timedelta(days=1)
+        date = d.strftime('%Y-%m-%d')
+        return date
+    finally:
+        return date
+
+def flatten_action_data (rdd_action_data):
     """
     :param base_action_rdd:
     :return: dataframe ['action', 'ap_id', 'org_name', 'event_name', 'event_type']
@@ -66,7 +58,7 @@ def join_action_df_w_org_df(df_with_event_name, df_org_id_name_map):
         .join(df_org_id_name_map,df_with_event_name.org_id == df_org_id_name_map.id, 'inner')\
         .drop('created_time','modified_time','msp_id','tzoffset','secret','loaded_date', 'id', 'org_id')
 
-    return action_w_org_df
+    return df_action_w_org
 
 def save_file_to_s3_action_reports(action_dataframe, date):
     """
@@ -91,9 +83,13 @@ if __name__ == '__main__':
     local file.jobs.
     *** it also needs to implement a run_jobs method*** 
     """
-    start = time.time()
 
-    setup_spark_configs()
+    date = get_run_date()
+
+    conf = SparkConf().setAppName(f" Spark Submit - Entity Action Report For Date: {date}")
+    sc = SparkContext.getOrCreate(conf=conf)
+    spark = SparkSession(sc)
+
     rdd_action_data = sc.sequenceFile(f"s3://mist-aggregated-stats-production/entity_action/"
                                       f"entity_action-production/dt={date}/hr=*/AutoAction_*.seq")
 
@@ -102,7 +98,4 @@ if __name__ == '__main__':
 
     action_df = flatten_action_data(rdd_action_data)
     action_w_org_df = join_action_df_w_org_df(action_df, df_org_id_name_map)
-    save_file_to_s3_action_reports(action_dataframe, date)
-
-    end = time.time()
-    logging.info("***** Execution of job took {} seconds".format(end - start))
+    save_file_to_s3_action_reports(action_w_org_df, date)
