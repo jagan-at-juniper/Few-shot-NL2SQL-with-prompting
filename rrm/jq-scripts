@@ -20,4 +20,6 @@ kafkaclient -env production -topic rrm-local- -rewind 1d -compact | jq -c  'sele
  kafkaclient -env production -topic rrm-apscan-anomaly-   -rewind 12h  -compact | jq -c 'select(.site=="9aa6ecdb-ddee-41b4-a8d9-872d7962b3c1")|.'  | tee a-2.txt
 
 
+s3archiveclient  -env staging -topic ap-stats-full- -org 6748cfa6-4e12-11e6-9188-0242ac110007 -site a8178443-ecb5-461c-b854-f16627619ab3  -pb2j -start 2020-03-24T10:40:43Z -duration 2h
+
 redis-cli KEYS "prefix:*" | xargs redis-cli DEL
