@@ -103,7 +103,7 @@ df_coverage_sticky = df_coverage.join(df_sticky_ap.select("ap_sticky", "sticky_c
 df_coverage_sticky.printSchema()
 df_coverage_sticky.show(3)
 
-df_coverage_sticky= df_coverage_sticky.withColumnRenamed("count", "coverage_anomaly_count")
+# df_coverage_sticky= df_coverage_sticky.withColumnRenamed("count", "coverage_anomaly_count")
 # stats
 
 df_coverage_sticky.count()
@@ -180,6 +180,8 @@ df_joined_g = df_joined_g.withColumn("ap_coverage_score", ap_coverage_score(col(
                                                                             col("neighbor_anomaly"))
                                      )
 
+
+df_joined_g.select("ap_coverage_score").describe().show()
 
 # TODO:
 # site_id = "5e8fe474-a9ee-4d01-a2b6-b022b0f9c869"  # GEG1 , AmazonOTFC-prod
