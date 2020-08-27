@@ -11,32 +11,66 @@
 # 
 # 
 # ## data sources:
+# * ap-last-seen
 # * scan 
-# * coverage-anommaly
+# * coverage-anomaly
 # * sticky-clients
 # 
 # 
 
-# In[1]:
-
 
 import pyspark.sql.functions as F
-from pyspark.sql.functions import udf, size, avg, count, col, sum, explode
+# from pyspark.sql.functions import udf, size, avg, count, col, sum, explode
 import json
 from pyspark.sql.types import StringType, FloatType
 
-def mac_format(mac):
-    return mac.replace("-", "")
-mac_format = udf(mac_format, StringType())
+from pyspark import *
+from pyspark.sql import *
+from pyspark.sql.types import *
 
 
 spark.conf.set("spark.sql.session.timeZone", "PST")
+
+def mac_format(mac):
+    return mac.replace("-", "")
+mac_format = F.udf(mac_format, StringType())
+
+
+# spark.conf.set("spark.sql.session.timeZone", "PST")
 
 env = "production"
 # env = "staging"
 s3_bucket = "s3://mist-aggregated-stats-{env}/aggregated-stats/".format(env=env)
 date_day = "2020-08-21"
 hr = '*'
+
+
+#
+# ap-last-seen,  all wireless- APs.   #AP per site,  ap-model
+#
+
+s3_bucket = 's3n://mist-aggregated-stats-{env}/event_generator/ap_last_seen/*'.format(env=env)
+print(s3_bucket)
+
+ap_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
+ff = {'org_id': StringType,
+      'site_id': StringType,
+      'ap_id': StringType,
+      'model': StringType,
+      'firmware_version': StringType,
+      'terminator_timestamp': LongType}
+fields = [StructField(k, v()) for k,v in ff.items()]
+schema = StructType(fields)
+
+df_ap = spark.createDataFrame(ap_rdd, schema)
+
+df_ap = df_ap.withColumnRenamed("org_id", "org")\
+        .withColumnRenamed("site_id", "site")\
+        .withColumnRenamed("ap_id", "ap")
+
+# df_ap = rdd.toDF()
+df_ap.printSchema()
+df_ap = df_ap.filter(df_ap.ap.isNotNull())
 
 
 #
@@ -48,21 +82,43 @@ df_coverage = rdd.filter(lambda x: x['event_type'] == "sle_coverage_anomaly")\
     .map(lambda x: x.get("source"))\
     .toDF()
 
-df_coverage = df_coverage.select("org", "site", "ap",  "band", "anomaly_type","avg_nclients", "sle_coverage",
+df_coverage = df_coverage.filter(F.col("anomaly_type")!="aysmmetry_downlink")\
+                        .select( "ap", "avg_nclients", "sle_coverage",
                                  "sle_coverage_anomaly_score")\
-                        .groupBy("org", "site", "ap")\
-                        .agg(avg("avg_nclients").alias("avg_nclient"),
-                                avg("sle_coverage").alias("sle_coverage"),
-                                avg("sle_coverage_anomaly_score").alias("coverage_anomaly_score"),
-                                count("*").alias("coverage_anomaly_count")
+                        .groupBy("ap")\
+                        .agg(F.avg("avg_nclients").alias("avg_nclients"),
+                                F.avg("sle_coverage").alias("sle_coverage"),
+                                F.avg("sle_coverage_anomaly_score").alias("coverage_anomaly_score"),
+                                F.count("*").alias("coverage_anomaly_count")
                              )\
-                        .withColumn("ap", mac_format(col("ap")))
+                        .withColumn("ap", mac_format(F.col("ap")))
 
 df_coverage.show()
 
+# reduce coverage events with low
+filter_query= "avg_nclients > 2.0 and sle_coverage < 0.50 and coverage_anomaly_score>1.0 and coverage_anomaly_count>3.0"
+df_coverage_filter = df_coverage.filter(filter_query)
+df_coverage_filter.count()
 
-df_coverage.select("avg_nclients").describe().show()
-df_coverage.select("sle_coverage_anomaly_score").describe().show()
+# df_test = df_coverage_filter.select("avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_count").summary()
+# df_test.show()
+
+df_coverage_filter.printSchema()
+df_coverage_filter = df_coverage_filter.withColumnRenamed("ap", "cov_ap")
+
+# df_ap= df_ap.join(df_coverage_filter.select("cov_ap",
+#                                             "avg_nclients", "sle_coverage",
+#                                             "coverage_anomaly_score", "coverage_anomaly_count" )
+#                                             [df_ap.ap == df_coverage_filter.cov_ap],
+#                   how='left'
+#                   )
+
+df_ap_coverage = df_ap.join(df_coverage_filter, [df_ap.ap == df_coverage_filter.cov_ap], how='left')
+
+
+
+# df_coverage.select("avg_nclients").().show()
+# df_coverage.select("sle_coverage_anomaly_score").describe().show()
 
 
 # s3_coverage_bucket = "s3://mist-secorapp-{env}/sle-coverage-anomaly/sle-coverage-anomaly-{env}/".format(env=env)
@@ -77,42 +133,55 @@ print(s3_sticky_path)
 
 rdd_sticky = spark.sparkContext.sequenceFile(s3_sticky_path)
 df_sticky = rdd_sticky.map(lambda x: json.loads(x[1])).toDF()  # .map(lambda x: json.loads(x[1])).
-df_sticky = df_sticky.select(col("Assoc.OrgID").alias("org"),
-                             col("Assoc.SiteID").alias("site"),
-                             col("Assoc.BSSID").alias("bssid"),
-                             col("Assoc.WLAN").alias("wlan"),
-                             col("Assoc.BAND").alias("band"),
-                             col("Assoc.AP").alias("ap_sticky"),
-                             col("Assoc.SSID").alias("ssid"),
+df_sticky = df_sticky.select(F.col("Assoc.OrgID").alias("org"),
+                             F.col("Assoc.SiteID").alias("site"),
+                             F.col("Assoc.BSSID").alias("bssid"),
+                             F.col("Assoc.WLAN").alias("wlan"),
+                             F.col("Assoc.BAND").alias("band"),
+                             F.col("Assoc.AP").alias("ap_sticky"),
+                             F.col("Assoc.SSID").alias("ssid"),
                              "WC",
                              "Sticky", "When", "version"
                              )
 #
 df_sticky_ap = df_sticky.select("org", "site", "ap_sticky").filter("Sticky")\
     .groupBy("org", "site", "ap_sticky")\
-    .agg(count("*").alias("sticky_count")) \
-    .withColumn("ap_sticky", mac_format(col("ap_sticky")))
+    .agg(F.count("*").alias("sticky_count")) \
+    .withColumn("ap_sticky", mac_format(F.col("ap_sticky")))
 
 df_sticky_ap.show()
 
 
 #join coverage and
-df_coverage_sticky = df_coverage.join(df_sticky_ap.select("ap_sticky", "sticky_count"), [
-                                                     df_coverage.ap == df_sticky_ap.ap_sticky],
-                                      how='left')
-df_coverage_sticky.printSchema()
-df_coverage_sticky.show(3)
-
+# df_coverage_sticky = df_coverage.join(df_sticky_ap.select("ap_sticky", "sticky_count"), [
+#                                                      df_coverage.ap == df_sticky_ap.ap_sticky],
+#                                       how='left')
+# df_coverage_sticky.printSchema()
+# df_coverage_sticky.show(3)
 # df_coverage_sticky= df_coverage_sticky.withColumnRenamed("count", "coverage_anomaly_count")
 # stats
-
-df_coverage_sticky.count()
-df_coverage_sticky.filter("avg_nclients>2.0 and sle_coverage_anomaly_score>2.0").count()
+#
+# df_coverage_sticky.count()
+# df_coverage_sticky.filter("avg_nclients>2.0 and sle_coverage_anomaly_score>2.0").count()
 
 #
+
+df_ap_coverage_sticky = df_ap_coverage.join(df_sticky_ap.select("ap_sticky", "sticky_count"),
+                                            [df_ap_coverage.ap == df_sticky_ap.ap_sticky],
+                                            how='left')
+df_ap_coverage_sticky.printSchema()
+df_ap_coverage_sticky.show(2)
+# next- join ,  current-AP  ( All AP,   coverage/sticky)
+#
+#  Hourly,
+#
+
+
+
 #  Using scan_data for ap-neighbor
 #
 hr = "23"
+s3_bucket = "s3://mist-aggregated-stats-{env}/aggregated-stats/".format(env=env)
 ap_neighbors_path = "top_1_time_epoch_by_site_ap_ap2_band/dt={day}/hr={hr}/*.csv".format(env=env, day=date_day, hr=hr)
 ap_neighbors_path = s3_bucket + ap_neighbors_path
 print(ap_neighbors_path)
@@ -126,37 +195,45 @@ df_edges = df_edges.withColumnRenamed("ap", "ap1")
 
 # df_Schema = df_edges.schema
 # df_edges.describe().show()
-# df_edges.count()
+df_edges.count()
 
 # # test-site
 
 # join df_coverage_sticky with edge from df_edges
 
-df_joined_1 = df_coverage_sticky.join(df_edges.select("ap1", "ap2", "rssi"),
-                                    [df_coverage_sticky.ap == df_edges.ap1],
+df_joined_1 = df_ap_coverage_sticky.join(df_edges.select("ap1", "ap2", "rssi"),
+                                    [df_ap_coverage_sticky.ap == df_edges.ap1],
                                     how="left")
 df_joined_1.printSchema()
 df_joined_1.show(2)
 
 
-df_coverage_sticky_ap2 = df_coverage_sticky.withColumnRenamed("ap", "ap_2") \
-    .select("ap_2", col("coverage_anomaly_count").alias("coverage_anomaly_count_2")
+df_ap_coverage_sticky_ap2 = df_ap_coverage_sticky.withColumnRenamed("ap", "ap_2") \
+    .select("ap_2", F.col("coverage_anomaly_count").alias("coverage_anomaly_count_2")
             )
-            # col("sle_coverage_anomaly_score").alias("sle_coverage_anomaly_score2")
-            # )
 
-df_joined = df_joined_1.join(df_coverage_sticky_ap2,  [df_joined.ap2 == df_coverage_sticky_ap2.ap_2], how="left")
+
+df_joined = df_joined_1.join(df_ap_coverage_sticky_ap2,  [df_joined_1.ap2 == df_ap_coverage_sticky_ap2.ap_2], how="left")
 df_joined.show(2)
+
+# final_stats
+
+df_final = df_joined.select("org", "site", "ap", "model",
+                "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_count",
+                "sticky_count",
+                "ap2", "rssi", "coverage_anomaly_count_2")
+
+
 
 s3_out_bucket = "s3://mist-test-bucket/wenfeng/df-joined/"
 df_joined.write.parquet(s3_out_bucket)
-df_joined_new = spark.read.parquet(s3_out_bucket)
+df_final_new = spark.read.parquet(s3_out_bucket)
 
 
 df_joined_g = df_joined.select("org", "site", "ap", "coverage_anomaly_count", "ap2", "coverage_anomaly_count_2")\
         .groupBy("org", "site", "ap")\
-        .agg( avg("coverage_anomaly_count").alias("coverage_anomaly_count"),
-              F.countDistinct("ap2").alias("neighbors"),
+        .agg( F.avg("coverage_anomaly_count").alias("coverage_anomaly_count"),
+              F.countDistinct("ap2").alias("strong_neighbors"),
               F.max("coverage_anomaly_count_2").alias("neighbor_anomaly")
             )
 
@@ -164,24 +241,27 @@ df_joined_g.printSchema()
 df_joined_g.show(2)
 
 # TODO:  Testing purpose
-def ap_coverage_score(sle_coverage_anomaly_score, strong_neighbors=0, neighbor_anomaly=None):
+def ap_coverage_score(sle_coverage_anomaly_score, strong_neighbors=0, neighbor_anomaly=None, tx_rx_utl= 1.0):
     score = 0.0
-    if sle_coverage_anomaly_score>3:
+    if sle_coverage_anomaly_score and sle_coverage_anomaly_score>3:
         score = 0.3
-    if strong_neighbors < 1:
+    if strong_neighbors and strong_neighbors < 1:
         score += 0.3
-    if neighbor_anomaly > 0:
+    if neighbor_anomaly and neighbor_anomaly > 0:
         score += 0.3
+    score = score * tx_rx_utl
     return score
 
-ap_coverage_score = udf(ap_coverage_score, FloatType())
-df_joined_g = df_joined_g.withColumn("ap_coverage_score", ap_coverage_score(col("coverage_anomaly_count"),
-                                                                            col("neighbors"),
-                                                                            col("neighbor_anomaly"))
+ap_coverage_score = F.udf(ap_coverage_score, FloatType())
+df_joined_g = df_joined_g.withColumn("ap_coverage_score", ap_coverage_score(F.col("coverage_anomaly_count"),
+                                                                            F.col("strong_neighbors"),
+                                                                            F.col("neighbor_anomaly"))
                                      )
 
 
 df_joined_g.select("ap_coverage_score").describe().show()
+
+
 
 # TODO:
 # site_id = "5e8fe474-a9ee-4d01-a2b6-b022b0f9c869"  # GEG1 , AmazonOTFC-prod
@@ -193,15 +273,15 @@ site_id = "a7092875-257f-43f3-9514-ca1ab688bec0"  # Sam's club. 4989
 #
 #  BACKUP, to-be-clean
 #
-df_coverage_site = df_coverage.filter(col("site") == site_id)
+df_coverage_site = df_coverage.filter(F.col("site") == site_id)
 print("df_coverage_site count", df_coverage_site.count())
 df_coverage_site.show()
 
-df_coverage_site = df_coverage_site.withColumn("ap", mac_format(col("ap")))
+df_coverage_site = df_coverage_site.withColumn("ap", mac_format(F.col("ap")))
 df_coverage_site.show(3)
 
-df_sticky_site = df_sticky.filter(col("site") == site_id)
-df_sticky_site = df_sticky_site.withColumn("ap", mac_format(col("ap")))
+df_sticky_site = df_sticky.filter(F.col("site") == site_id)
+df_sticky_site = df_sticky_site.withColumn("ap", mac_format(F.col("ap")))
 print("count", df_sticky_site.count())
 df_sticky_site.show()
 
@@ -210,7 +290,7 @@ df_sticky_site.show()
 df_coverage_sticky_site = df_coverage_site.join(df_coverage_site, [df_coverage_site.ap == df_sticky_site.ap], how='left')
 
 # scan site
-df_edges_site = df_edges.filter(col('site') == site_id)
+df_edges_site = df_edges.filter(F.col('site') == site_id)
 print("count", df_edges_site.count())
 df_edges_site.show()
 
@@ -233,7 +313,7 @@ vertices_4.show(3)
 vertices_4.count()
 
 # edges
-edges = df_edges_site.filter(col("rssi") > -65) \
+edges = df_edges_site.filter(F.col("rssi") > -65) \
     .select("ap", "ap2", "rssi")\
     .groupBy("ap", "ap2")\
     .agg(F.max("rssi").alias("weight")) \
@@ -539,7 +619,7 @@ mist_g = nx.read_gpickle("../../mist-rrm-exp/test-notebooks/mistG_sams_4989.gpic
 # In[ ]:
 
 
-# df_coverage_site = df_coverage_0.filter(col("site")==site_id)
+# df_coverage_site = df_coverage_0.filter(F.col("site")==site_id)
 df_coverage_site.show(0)
 
 # In[ ]:
