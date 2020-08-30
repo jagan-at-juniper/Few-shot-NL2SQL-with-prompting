@@ -101,7 +101,7 @@ def load_coverage_anomaly(spark, s3_bucket):
         .map(lambda x: x.get("source"))\
         .toDF()
     # reduce coverage events with low
-    filter_query= "avg_nclients > 2.0 and sle_coverage < 0.50 and coverage_anomaly_score>1.0 and coverage_anomaly_count>3.0"
+    filter_query= "avg_nclients > 2.0 and sle_coverage < 0.50 and coverage_anomaly_count>3.0"
     df_coverage = df_coverage.filter(filter_query)
 
     # groupBy AP
@@ -122,6 +122,7 @@ def load_coverage_anomaly(spark, s3_bucket):
                                                                                    F.col("sle_coverage"),
                                                                                    F.col("sle_coverage_anomaly_dev"),
                                                                                    F.col("coverage_anomaly_count"))
+                                         )
 
     # df_coverage_filter.count()
     return df_coverage
