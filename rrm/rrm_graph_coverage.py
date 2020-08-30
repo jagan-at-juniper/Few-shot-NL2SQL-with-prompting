@@ -100,9 +100,6 @@ def load_coverage_anomaly(spark, s3_bucket):
     df_coverage = rdd.filter(lambda x: x['event_type'] == "sle_coverage_anomaly")\
         .map(lambda x: x.get("source"))\
         .toDF()
-    # reduce coverage events with low
-    filter_query= "avg_nclients > 2.0 and sle_coverage < 0.50 and coverage_anomaly_count>3.0"
-    df_coverage = df_coverage.filter(filter_query)
 
     # groupBy AP
     df_coverage = df_coverage.filter(F.col("anomaly_type")!="aysmmetry_downlink")\
@@ -116,6 +113,10 @@ def load_coverage_anomaly(spark, s3_bucket):
                                  )\
                             .withColumn("ap", mac_format(F.col("ap")))\
                             .withColumnRenamed("ap", "cov_ap")
+
+    # reduce coverage events with low
+    filter_query= "avg_nclients > 2.0 and sle_coverage < 0.50 and coverage_anomaly_count>3.0"
+    df_coverage = df_coverage.filter(filter_query)
 
     # get coverage_anomaly_score
     df_coverage = df_coverage.withColumn("coverage_anomaly_score",  coverage_score(F.col("avg_nclients"),
