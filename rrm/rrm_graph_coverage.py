@@ -204,28 +204,32 @@ df_edges.count()
 #
 # join df_coverage_sticky with edge from df_edges
 #
-df_joined_1 = df_ap_coverage_sticky.join(df_edges.select("ap1", "ap2", "rssi"),
-                                    [df_ap_coverage_sticky.ap_id == df_edges.ap1],
-                                    how="left")
-df_joined_1.printSchema()
-df_joined_1.show(2)
+def join_df(df_ap_coverage_sticky, df_edges):
+    df_joined_1 = df_ap_coverage_sticky.join(df_edges.select("ap1", "ap2", "rssi"),
+                                        [df_ap_coverage_sticky.ap_id == df_edges.ap1],
+                                        how="left")
+    # df_joined_1.printSchema()
+    # df_joined_1.show(2)
+
+    df_ap_coverage_sticky_ap2 = df_ap_coverage_sticky.withColumnRenamed("ap_id", "ap_2") \
+        .select("ap_2", F.col("coverage_anomaly_score").alias("coverage_anomaly_score_2")
+                )
+
+    df_joined = df_joined_1.join(df_ap_coverage_sticky_ap2,  [df_joined_1.ap2 == df_ap_coverage_sticky_ap2.ap_2], how="left")
 
 
-df_ap_coverage_sticky_ap2 = df_ap_coverage_sticky.withColumnRenamed("ap_id", "ap_2") \
-    .select("ap_2", F.col("coverage_anomaly_score").alias("coverage_anomaly_score_2")
-            )
+    df_final = df_joined.select("org_id", "site_id", "ap_id", "model",
+                                "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_score",
+                                "sticky_count",
+                                "ap2", "rssi", "coverage_anomaly_score_2")
 
 
-df_joined = df_joined_1.join(df_ap_coverage_sticky_ap2,  [df_joined_1.ap2 == df_ap_coverage_sticky_ap2.ap_2], how="left")
-df_joined.show(2)
+    return df_final
+
+df_final = join_df(df_ap_coverage_sticky, df_edges)
+df_final.show(2)
 
 # final_stats
-
-df_final = df_joined.select("org_id", "site_id", "ap_id", "model",
-                "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_score",
-                "sticky_count",
-                "ap2", "rssi", "coverage_anomaly_score_2")
-
 
 
 s3_out_bucket = "s3://mist-test-bucket/wenfeng/df-joined-new/"
@@ -233,7 +237,7 @@ df_final.write.parquet(s3_out_bucket)
 df_final_new = spark.read.parquet(s3_out_bucket)
 
 
-df_joined_g = df_joined.select("org_id", "site_id", "ap_id", "coverage_anomaly_score", "ap2", "coverage_anomaly_score_2")\
+df_joined_g = df_final.select("org_id", "site_id", "ap_id", "coverage_anomaly_score", "ap2", "coverage_anomaly_score_2")\
         .groupBy("org_id", "site_id", "ap_id")\
         .agg( F.avg("coverage_anomaly_score").alias("coverage_anomaly_score"),
               F.max("sticky_count").alias("max_sticky_count"),
@@ -248,9 +252,9 @@ df_joined_g.show(2)
 def ap_coverage_score(sle_coverage_anomaly_score, strong_neighbors=0, neighbor_anomaly=None, tx_rx_utl= 1.0):
     score = 0.0
     if sle_coverage_anomaly_score and sle_coverage_anomaly_score>3:
-        score = 0.3
+        score = 0.5
     if strong_neighbors and strong_neighbors < 1:
-        score += 0.3
+        score += 0.2
     if neighbor_anomaly and neighbor_anomaly > 0:
         score += 0.3
     score = score * tx_rx_utl
