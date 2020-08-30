@@ -219,7 +219,7 @@ def join_df(df_ap_coverage_sticky, df_edges):
 
 
     df_final = df_joined.select("org_id", "site_id", "ap_id", "model",
-                                "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_score",
+                                "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_count",
                                 "sticky_count",
                                 "ap2", "rssi", "coverage_anomaly_score_2")
 
