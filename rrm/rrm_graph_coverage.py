@@ -33,6 +33,11 @@ from pyspark.sql.types import *
 spark.conf.set("spark.sql.session.timeZone", "PST")
 
 def mac_format(mac):
+    """
+
+    :param mac:
+    :return:
+    """
     return mac.replace("-", "")
 mac_format = F.udf(mac_format, StringType())
 
@@ -50,6 +55,12 @@ hr = '*'
 # ap-last-seen,  all wireless- APs.   #AP per site,  ap-model
 #
 def get_ap_last_seen(spark, s3_bucket):
+    """
+    Load Available APs
+    :param spark:
+    :param s3_bucket:
+    :return:
+    """
     ap_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
     ff = {'org_id': StringType,
           'site_id': StringType,
@@ -87,6 +98,14 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def coverage_score(nclients, sle_coverage, sle_coverage_anomaly_dev, coverage_anomaly_count):
+    """
+    AP's coverage score, combining sle_coverage, anomalies and connected clients
+    :param nclients:
+    :param sle_coverage:
+    :param sle_coverage_anomaly_dev:
+    :param coverage_anomaly_count:
+    :return:
+    """
     # score = 0.0
     score = (1.0 - sle_coverage) * \
             sigmoid(nclients-1.0) * \
@@ -95,7 +114,13 @@ def coverage_score(nclients, sle_coverage, sle_coverage_anomaly_dev, coverage_an
     return score
 coverage_score = F.udf(coverage_score, FloatType())
 
-def load_coverage_anomaly(spark, s3_bucket):
+def load_coverage_anomaly(spark, s3_coverage_bucket):
+    """
+    load sle_coverage_anomaly events.
+    :param spark:
+    :param s3_bucket:
+    :return:
+    """
     rdd = spark.sparkContext.sequenceFile(s3_coverage_bucket).map(lambda x: json.loads(x[1]))
     df_coverage = rdd.filter(lambda x: x['event_type'] == "sle_coverage_anomaly")\
         .map(lambda x: x.get("source"))\
@@ -136,6 +161,12 @@ df_coverage.show()
 # sticky client  (from client-events)?
 #
 def load_sticky_client(spark, s3_bucket):
+    """
+
+    :param spark:
+    :param s3_bucket:
+    :return:
+    """
     rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
     df_sticky = rdd.filter(lambda x: x['event_type'] == "sticky-client") \
         .map(lambda x: x.get("source")) \
@@ -191,6 +222,12 @@ print(s3_ap_neighbors_path)
 
 #
 def load_ap_scan_data(spark, s3_bucket):
+    """
+
+    :param spark:
+    :param s3_bucket:
+    :return:
+    """
     df_edges = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
         .load(s3_bucket)
@@ -204,7 +241,13 @@ df_edges.count()
 #
 # join df_coverage_sticky with edge from df_edges
 #
-def join_df(df_ap_coverage_sticky, df_edges):
+def join_nodes_edges_dfs(df_ap_coverage_sticky, df_edges):
+    """
+
+    :param df_ap_coverage_sticky:
+    :param df_edges:
+    :return:
+    """
     df_joined_1 = df_ap_coverage_sticky.join(df_edges.select("ap1", "ap2", "rssi"),
                                         [df_ap_coverage_sticky.ap_id == df_edges.ap1],
                                         how="left")
@@ -217,16 +260,14 @@ def join_df(df_ap_coverage_sticky, df_edges):
 
     df_joined = df_joined_1.join(df_ap_coverage_sticky_ap2,  [df_joined_1.ap2 == df_ap_coverage_sticky_ap2.ap_2], how="left")
 
-
     df_final = df_joined.select("org_id", "site_id", "ap_id", "model",
                                 "avg_nclients", "sle_coverage", "coverage_anomaly_score", "coverage_anomaly_count",
                                 "sticky_count",
                                 "ap2", "rssi", "coverage_anomaly_score_2")
 
-
     return df_final
 
-df_final = join_df(df_ap_coverage_sticky, df_edges)
+df_final = join_nodes_edges_dfs(df_ap_coverage_sticky, df_edges)
 df_final.show(2)
 
 # final_stats
@@ -250,6 +291,14 @@ df_joined_g.show(2)
 
 # TODO:  Testing purpose
 def ap_coverage_score(sle_coverage_anomaly_score, strong_neighbors=0, neighbor_anomaly=None, tx_rx_utl= 1.0):
+    """
+     Coverage score, combining neighbor's impacting.
+    :param sle_coverage_anomaly_score:
+    :param strong_neighbors:
+    :param neighbor_anomaly:
+    :param tx_rx_utl:
+    :return:
+    """
     score = 0.0
     if sle_coverage_anomaly_score and sle_coverage_anomaly_score>3:
         score = 0.5
