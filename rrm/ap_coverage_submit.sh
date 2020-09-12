@@ -38,7 +38,7 @@ ${job_class} ${day_of_task} ${day_of_task} \
 --provider aws --env production  --delay-spark-context  --data-source ${data_source}"
 
 echo "jobs for day_of_task ${day_of_task} hour= ${day_of_task}"
-for hr in {00..01};
+for hr in {00..23};
  do
    hour=$(printf "%02d" $hour)
    echo "-----start to job  $day_of_task_$hour -------$hour "
