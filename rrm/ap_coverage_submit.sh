@@ -44,8 +44,13 @@ echo "jobs for day_of_task ${day_of_task} hour= ${day_of_task}"
 
 for hr in {00..23};
  do
-   hour=$(printf "%02d" $hour)
-   echo "-----start to job  $day_of_task_$hour -------$hour "
+#   if [ ${hr} -lt 10 ]; then
+#     hour=0$hr #$(printf "%02d" $hr)
+#   else
+#     hour=$hr
+#   fi
+   hour=$hr
+   echo "-----start to job  $day_of_task_$hour -------$hour  ${date} "
    AWS_CMD="spark-submit ${args} $jobs  --hour $hour"
    echo ${AWS_CMD}
    ${AWS_CMD}
