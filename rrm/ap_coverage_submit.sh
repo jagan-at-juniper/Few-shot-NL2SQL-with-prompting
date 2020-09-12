@@ -16,9 +16,12 @@ elif [ $job_name == "coverage_events" ]; then
 else
   echo "Wrong parameters,  usage:"
   echo ""
-  echo "    ap_coverage_submit.sh  coverage_aggregator 2020-09-10"
-  echo "    ap_coverage_submit.sh  coverage_enricher 2020-09-10"
-  echo "    ap_coverage_submit.sh  coverage_events 2020-09-10"
+  echo "--To update coverage_anomaly_stats from ap-event/sle-coverage-anomaly---"
+  echo "    $ ap_coverage_submit.sh  coverage_aggregator 2020-09-10"
+  echo "--To get ap_coverage_stats from enricher: 4 inputs data"
+  echo "    $ ap_coverage_submit.sh  coverage_enricher 2020-09-10"
+  echo "--To get generate events--"
+  echo "    $ ap_coverage_submit.sh  coverage_events 2020-09-10"
   echo ""
   return
 fi
@@ -38,13 +41,14 @@ ${job_class} ${day_of_task} ${day_of_task} \
 --provider aws --env production  --delay-spark-context  --data-source ${data_source}"
 
 echo "jobs for day_of_task ${day_of_task} hour= ${day_of_task}"
+
 for hr in {00..23};
  do
    hour=$(printf "%02d" $hour)
    echo "-----start to job  $day_of_task_$hour -------$hour "
    AWS_CMD="spark-submit ${args} $jobs  --hour $hour"
    echo ${AWS_CMD}
-#   ${AWS_CMD}
+   ${AWS_CMD}
  done
 
 
