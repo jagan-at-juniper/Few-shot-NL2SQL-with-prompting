@@ -5,7 +5,7 @@ day_of_task=${2:- 2020-09-10}
 spark_zip=./wenfeng/spark_jobs_test.zip
 
 if [ $job_name == "coverage_aggregator" ]; then
-  job_class=analytics.jobs.event_aggregator.EventAggregator
+  job_class=analytics.jobs.stats_aggregator.StatsAggregator
   data_source="ap-events"
 elif [ $job_name == "coverage_enricher" ]; then
   job_class=analytics.jobs.data_enrichment.DataEnrichment
