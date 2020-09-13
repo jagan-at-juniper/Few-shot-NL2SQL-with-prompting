@@ -50,10 +50,10 @@ for hr in {00..23};
 #     hour=$hr
 #   fi
    hour=$hr
-   echo "-----start to job  $day_of_task_$hour -------$hour  ${date} "
+   echo "-----start to job  $day_of_task_$hour -------$hour  $(date)  "
    AWS_CMD="spark-submit ${args} $jobs  --hour $hour"
    echo ${AWS_CMD}
-   ${AWS_CMD}
+#   ${AWS_CMD}
  done
 
 
