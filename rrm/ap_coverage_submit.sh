@@ -8,11 +8,11 @@ if [ $job_name == "coverage_aggregator" ]; then
   job_class=analytics.jobs.stats_aggregator.StatsAggregator
   data_source="ap-events"
 elif [ $job_name == "coverage_enricher" ]; then
-  job_class=analytics.jobs.data_enrichment.DataEnrichment
-  data_source=ap_coverage_enrichment
-elif [ $job_name == "coverage_events" ]; then
+  job_class="analytics.jobs.data_enrichment.DataEnrichment"
+  data_source="ap_coverage_enrichment"
+elif [ $job_name == "coverage_detection" ]; then
   job_class=analytics.jobs.event_aggregator.EventAggregator
-  data_source=ap_coverage_stats
+  data_source="ap_coverage_detection"
 else
   echo "Wrong parameters,  usage:"
   echo ""
@@ -21,7 +21,7 @@ else
   echo "--To get ap_coverage_stats from enricher: 4 inputs data"
   echo "    $ ap_coverage_submit.sh  coverage_enricher 2020-09-10"
   echo "--To get generate events--"
-  echo "    $ ap_coverage_submit.sh  coverage_events 2020-09-10"
+  echo "    $ ap_coverage_submit.sh  coverage_detection 2020-09-10"
   echo ""
   return
 fi
