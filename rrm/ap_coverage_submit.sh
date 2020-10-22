@@ -2,6 +2,7 @@
 
 job_name=${1:- }
 day_of_task=${2:- 2020-09-10}
+ENV=${3:- producction}
 spark_zip=./wenfeng/spark_jobs_test.zip
 
 if [ $job_name == "coverage_aggregator" ]; then
@@ -32,13 +33,13 @@ echo "job_name=$job_name job_class = $job_class, data_source=$data_source"
 args=" --deploy-mode cluster --master yarn \
 --name ${job_name} \
 --py-files ${spark_zip} \
---files s3://mist-production-assets/enrichment_source/ap_mfg_info.csv \
+--files s3://mist-${ENV}-assets/enrichment_source/ap_mfg_info.csv \
 --conf spark.yarn.maxAppAttempts=1 \
 --conf spark.driver.memoryOverhead=1024m "
 
 jobs=" s3://mist-production-assets/services/spark_jobs/runner-v0.5.45.py \
 ${job_class} ${day_of_task} ${day_of_task} \
---provider aws --env production  --delay-spark-context  --data-source ${data_source}"
+--provider aws --env ${ENV}  --delay-spark-context  --data-source ${data_source}"
 
 echo "jobs for day_of_task ${day_of_task} hour= ${day_of_task}"
 
