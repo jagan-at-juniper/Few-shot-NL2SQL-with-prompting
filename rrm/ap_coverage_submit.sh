@@ -1,7 +1,7 @@
 #!/bin/bash
 
 job_name=${1:- }
-day_of_task=${2:- 2020-09-10}
+day_of_task=${2:- 2020-10-16}
 ENV=${3:- producction}
 spark_zip=./wenfeng/spark_jobs_test.zip
 
