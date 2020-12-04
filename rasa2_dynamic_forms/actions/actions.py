@@ -80,7 +80,6 @@ class ValidateTbshootForm(FormValidationAction):
                 mac = tracker.get_slot('mac')
                 # Condition # : user provides the correct mac
                 if check_mac_format(mac)[0] == True:
-                    # del self.condition
                     dispatcher.utter_message('Troublshoot for client with mac {}'.format(mac))
                     self.condition = 'finish'
                     self.returned_slots = []
@@ -98,13 +97,11 @@ class ValidateTbshootForm(FormValidationAction):
                     jj = find_hostname(hostname)
                     # There is not such hostname
                     if jj == 0:
-                        # del self.condition
                         dispatcher.utter_message('The client with host name {} was not found'.format(hostname))
                         self.condition = 'finish'
                         self.returned_slots = []
                     # There is only one client with that hostname
                     elif jj == 1:
-                        # del self.condition
                         dispatcher.utter_message('Troublshoot for client with hostname {}'.format(hostname))
                         self.condition = 'finish'
                         self.returned_slots = []
@@ -114,11 +111,11 @@ class ValidateTbshootForm(FormValidationAction):
                         self.returned_slots = ["sitename"]
                         self.condition = 3
                         
-                # User does not know the hostname so we ask for site name
+                # User does not know the hostname so we ask for site name (no mac, no hostname)
                 elif intent == 'deny':
                     self.returned_slots = ["sitename"]
                     self.condition = 4
-                
+            # condition #3(no mac, multiple hostname), condition #4(no mac, no hostname) --> for both we ask site name
             elif self.condition in [3, 4]:
                 # User gives you the site name
                 if intent == 'inform':
@@ -148,12 +145,21 @@ class ValidateTbshootForm(FormValidationAction):
                     elif self.condition == 4:
                             self.returned_slots = ["deviceType"]
                             self.condition = 6
-                # User dosen't know the hostname --> No mac, no hostname, no sitename
+                # User dosen't know the sitename 
                 elif intent == 'deny':
-                    dispatcher.utter_message('Dude, without knowing your mac, hostname, and sitename there is not much I can do!')
-                    self.condition = 'finish'
-                    self.returned_slots = []
-
+                    # User know the hostname but No mac, and no sitename
+                    if self.condition == 3:
+                        hostname = tracker.get_slot('hostname')
+                        dispatcher.utter_message('Please select from list of hostname {} shown here'.format(hostname))
+                        self.condition = 'finish'
+                        self.returned_slots = []
+                    # No mac, no hostname, no sitename
+                    if self.condition == 4:
+                        dispatcher.utter_message('Dude, without knowing your mac, hostname, and sitename there is not much I can do!')
+                        self.condition = 'finish'
+                        self.returned_slots = []
+            
+            # condition #5(no mac, multiple hostname, multiple sitename), condition #6(no mac, no hostname, we know the sitename) --> for both we ask deviceType
             elif self.condition in [5, 6]:
                 # user knows the device type
                 if intent == 'inform':
