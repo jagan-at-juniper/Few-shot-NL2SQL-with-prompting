@@ -46,14 +46,27 @@ class ValidateTbshootForm(FormValidationAction):
         domain: "DomainDict",
     ) -> Optional[List[Text]]:
 
-
+        logger.info('START of RS')
+        logger.info('Executed condition inside RS : {}'.format(self.condition))
         # logger.info('count is : {}'.format(self.count))
         intent = tracker.latest_message.get('intent', {}).get('name', '')
         logger.info('detcted intent inside RS: {}'.format(intent))
-        logger.info('count RS: {}'.format(self.count))
+        # logger.info('count RS: {}'.format(self.count))
 
+        #reset condition
+        if self.count == 1 and self.condition == 'finish':
+            del self.condition
+
+        # if self.count == self.condition:
+        logger.info('count is : {}'.format(self.count))
         self.count += 1
-        if self.count % 2 == 0:
+        if self.count == 3:
+            self.count = 0
+            # del self.condition
+
+
+        # self.count += 1
+        if self.count  == 1:
             # logger.info('count inside condition loop : {}'.format(self.count))
 
             # Condition #1 : user doesn't know the mac --> we ask to provide hostname
@@ -77,7 +90,7 @@ class ValidateTbshootForm(FormValidationAction):
                     self.returned_slots = ["hostname"]
                     self.condition = 2
                     
-            # After we ask for hostname differen scenarios might happend
+            # After we ask for hostname different scenarios might happend
             elif self.condition in [1, 2]:
                 # User knows the hostname
                 if intent == 'inform':
@@ -98,53 +111,92 @@ class ValidateTbshootForm(FormValidationAction):
                     # There are multiple clients with that hostname
                     elif jj == 2:
                         dispatcher.utter_message('There are multiple clients with that hostname {}'.format(hostname))
-                        self.returned_slots = ["site_name"]
+                        self.returned_slots = ["sitename"]
                         self.condition = 3
                         
                 # User does not know the hostname so we ask for site name
                 elif intent == 'deny':
-                    self.returned_slots = ["site_name"]
+                    self.returned_slots = ["sitename"]
                     self.condition = 4
                 
             elif self.condition in [3, 4]:
+                # User gives you the site name
                 if intent == 'inform':
-                    site_name = tracker.get_slot('site_name')
-                    jj = find_site_name(site_name)
-                    # There is not such sitename
-                    if jj == 0:
-                        # del self.condition
-                        dispatcher.utter_message('The client with site name {} was not found'.format(site_name))
-                        self.condition = 'finish'
-                        self.returned_slots = []
-                    # There is only one client with that sitename
-                    elif jj == 1:
-                        # del self.condition
-                        dispatcher.utter_message('Troublshoot for client with sitename {}'.format(site_name))
-                        self.condition = 'finish'
-                        self.returned_slots = []
-                    # There are multiple clients with that  sitename
-                    elif jj == 2:
-                        dispatcher.utter_message('There are multiple clients with that site name {}'.format(site_name))
-                        self.returned_slots = ["deviceType"]
-                        self.condition = 5
-                
+                    sitename = tracker.get_slot('sitename')
+                    # we know the hostname and sitename
+                    if self.condition == 3:
+                        hostname = tracker.get_slot('hostname')
+                        jj = find_sitename(sitename)
+                        # There is not such sitename
+                        if jj == 0:
+                            # There is not such client with that sitename and hostname
+                            dispatcher.utter_message('The client with site name {} and hostname {} was not found'.format(sitename, hostname))
+                            self.condition = 'finish'
+                            self.returned_slots = []
+                        # There is only one client with that sitename and hostname
+                        elif jj == 1:
+                            # del self.condition
+                            dispatcher.utter_message('Troublshoot for client with sitename {} and hostname {}'.format(sitename, hostname))
+                            self.condition = 'finish'
+                            self.returned_slots = []
+                        # There are multiple clients with that sitename and hostname so we ask for device type
+                        elif jj == 2:
+                            dispatcher.utter_message('There are multiple clients with that site name {} and hostname {}'.format(sitename, hostname))
+                            self.returned_slots = ["deviceType"]
+                            self.condition = 5
+                    # we don't know the hostname, just the sitename so we ask for device type
+                    elif self.condition == 4:
+                            self.returned_slots = ["deviceType"]
+                            self.condition = 6
+                # User dosen't know the hostname --> No mac, no hostname, no sitename
                 elif intent == 'deny':
-                    self.returned_slots = ["deviceType"]
-                    self.condition = 6
+                    dispatcher.utter_message('Dude, without knowing your mac, hostname, and sitename there is not much I can do!')
+                    self.condition = 'finish'
+                    self.returned_slots = []
 
             elif self.condition in [5, 6]:
-                deviceType = tracker.get_slot('deviceType')
-                site_name = tracker.get_slot('site_name')
-                dispatcher.utter_message('Troubleshoot client with device type {} and site name {}'.format(deviceType, site_name))
-                self.condition = 'finish'
-                self.returned_slots = []
+                # user knows the device type
+                if intent == 'inform':
+                    deviceType = tracker.get_slot('deviceType')
+                    # We know the hostname, sitename, and device type
+                    if self.condition == 5:
+                        sitename = tracker.get_slot('sitename')
+                        hostname = tracker.get_slot('hostname')
+                        dispatcher.utter_message('Troubleshoot client with hostname {}, sitename {}, and device type {}'.format(hostname,sitename,deviceType))
+                        self.condition = 'finish'
+                        self.returned_slots = []
+                    # We know the sitename, and device type
+                    elif self.condition == 6:
+                        sitename = tracker.get_slot('sitename')
+                        dispatcher.utter_message('Here is what I can do knowing your sitename {} and device type as  {}'.format(sitename,deviceType))
+                        self.condition = 'finish'
+                        self.returned_slots = []
+
+                # user doesn't know the device type
+                elif intent == 'deny':
+                    # we know the sitename and hostname
+                    if self.condition == 5:
+                        sitename = tracker.get_slot('sitename')
+                        hostname = tracker.get_slot('hostname')
+                        dispatcher.utter_message('Here is what I can do knowing your hostname {} and sitename {}'.format(hostname,sitename))
+                        self.condition = 'finish'
+                        self.returned_slots = []
+
+                    # we only know the sitename 
+                    elif self.condition == 6:
+                        sitename = tracker.get_slot('sitename')
+                        dispatcher.utter_message('I only know your sitename as {}, here are unhappy clients as your site'.format(sitename))
+                        self.condition = 'finish'
+                        self.returned_slots = []
+
             # # logger.info('Executed condition 2: {}'.format(self.condition))
             logger.info('Updated required slots RS: {}'.format(self.returned_slots))
 
         # if self.condition == 'finish':
         #     self.finish_count += 1
-        
-        
+
+
+        logger.info('END of RS')
         return self.returned_slots
 
 
@@ -152,23 +204,29 @@ class ValidateTbshootForm(FormValidationAction):
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict
     ) -> Dict[Text, Any]:
 
+        # self.count = self.condition
+
         logger.info('inside extract_hostname')
         hostname = tracker.get_slot('hostname')
 
         return {"hostname": hostname}
 
-    async def extract_site_name(
+    async def extract_sitename(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict
     ) -> Dict[Text, Any]:
 
-        logger.info('inside extract_site_name')
-        site_name = tracker.get_slot('site_name')
+        # self.count = self.condition
 
-        return {"site_name": site_name}
+        logger.info('inside extract_sitename')
+        sitename = tracker.get_slot('sitename')
+
+        return {"sitename": sitename}
     
     async def extract_deviceType(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict
     ) -> Dict[Text, Any]:
+
+        # self.count = self.condition
 
         logger.info('inside extract_deviceType')
         deviceType = tracker.get_slot('deviceType')
@@ -183,11 +241,21 @@ def check_mac_format(name):
     return False, name
 
 def find_hostname(hostname):
-    number_found = random.choice([0, 1, 2])
+    if hostname == 'amin0':
+        number_found = 0
+    if hostname == 'amin1':
+        number_found = 1
+    if hostname == 'amin2':
+        number_found = 2
     return number_found
 
-def find_site_name(site_name):
-    number_found = random.choice([2])
+def find_sitename(sitename):
+    if sitename == 'mist0':
+        number_found = 0
+    if sitename == 'mist1':
+        number_found = 1
+    if sitename == 'mist2':
+        number_found = 2
     return number_found
 
 
