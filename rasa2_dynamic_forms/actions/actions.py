@@ -49,9 +49,6 @@ class ValidateTbshootForm(FormValidationAction):
         events = events + [SlotSet(key='tb_form_state', value=self.form_state)]
         return events
 
-        # no more required slots to fill
-        return None
-
     async def required_slots(
         self,
         slots_mapped_in_domain: List[Text],
