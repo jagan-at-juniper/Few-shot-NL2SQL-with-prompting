@@ -36,6 +36,12 @@ slots:
   id:
     type: text
     influence_conversation: true
+  tb_form_state:
+    type: any
+    influence_conversation: false
+  user_input:
+    type: text
+    influence_conversation: false
 
 forms:
   form_tbshoot: 

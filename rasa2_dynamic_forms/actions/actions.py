@@ -4,6 +4,7 @@ from numpy import random
 from typing import Dict, Text, List, Optional, Any
 
 from rasa_sdk import Tracker
+from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.forms import FormValidationAction
 from rasa_sdk.types import DomainDict
@@ -14,29 +15,42 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ValidateTbshootForm(FormValidationAction):
+
+    def __init__(
+        self
+    ) -> None:
+        self.org_id = None
+        self.form_state = {}
+        self.returned_slots = ['mac']
+        self.first_call = False
+
+        self.condition = 0
+        self.count = 0
+
     def name(self) -> Text:
-        try:
-            self.condition
-            # self.returned_slots
-        except AttributeError:
-            # condition #0 asks for mac address
-            self.condition = 0
-            self.returned_slots = ['mac']
-            self.count = 0
-            # self.finish_count = 0
-
-        # logger.info('count name: {}'.format(self.count))
-        # logger.info('condition name: {}'.format(self.condition))
-        # logger.info('finish count name: {}'.format(self.finish_count))
-
-        # if self.condition == 'finish' and self.finish_count == 1:
-        #     logger.info('reset condition')
-        #     del self.condition
-            
-        
-        logger.info('Executed condition inside name : {}'.format(self.condition))
-
         return "validate_form_tbshoot"
+
+    async def run(
+        self,
+        dispatcher: "CollectingDispatcher",
+        tracker: "Tracker",
+        domain: "DomainDict",
+    ) -> List[EventType]:
+
+        # restore the form state from slots
+        self.form_state = tracker.slots.get('tb_form_state', {})
+        if self.form_state is None:
+            self.form_state = {}
+
+        # original form implementation for the run()
+        events = await super(ValidateTbshootForm, self).run(dispatcher, tracker, domain)
+
+        # persist the stats into slots
+        events = events + [SlotSet(key='tb_form_state', value=self.form_state)]
+        return events
+
+        # no more required slots to fill
+        return None
 
     async def required_slots(
         self,
