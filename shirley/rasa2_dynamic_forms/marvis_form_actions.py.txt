@@ -1,0 +1,131 @@
+import re
+from numpy import random
+
+from typing import Dict, Text, List, Optional, Any
+
+from rasa_sdk import Tracker
+from rasa_sdk.events import EventType, SlotSet
+from rasa_sdk.executor import CollectingDispatcher
+from rasa_sdk.forms import FormValidationAction
+from rasa_sdk.types import DomainDict
+
+from rasa_sdk import Action
+
+import logging
+logger = logging.getLogger(__name__)
+
+
+class ValidateTbshootForm(FormValidationAction):
+
+    def __init__(
+        self
+    ) -> None:
+        self.org_id = None
+        self.form_state = {}
+
+    def name(self) -> Text:
+        return "dummy_form_tbshoot"
+
+    async def run(
+        self,
+        dispatcher: "CollectingDispatcher",
+        tracker: "Tracker",
+        domain: "DomainDict",
+    ) -> List[EventType]:
+
+        self.form_state = tracker.slots.get('tb_form_state', {})
+        if self.form_state is None:
+            self.form_state = {}
+
+        logger.info('....... beginning form_stats: {}'.format(self.form_state))
+        # original implementation for the run()
+        events = await super(ValidateTbshootForm, self).run(dispatcher, tracker, domain)
+
+        # append event to update to form_state slot, so that we
+        # know current state in the next round
+        # TODO apply update to the tb_form_state
+        events = events + [SlotSet(key='tb_form_state', value=self.form_state)]
+
+        return events
+
+    async def required_slots(
+        self,
+        slots_mapped_in_domain: List[Text],
+        dispatcher: "CollectingDispatcher",
+        tracker: "Tracker",
+        domain: "DomainDict",
+    ) -> Optional[List[Text]]:
+
+        logger.info('START of RS')
+
+
+        # check what is inside self.form_state
+        # based on the stats to decide what msg should be dispatch back to the user
+        logger.info('form_stats: {}'.format(self.form_state))
+
+        # if condition does not satisfy the TS condition
+        # continue ask user for input with different msg and input to the same slot
+
+        slots_mapped_in_domain = slots_mapped_in_domain + ['mac']
+        logger.info('END of RS')
+        return slots_mapped_in_domain
+
+    async def extract_mac(
+        self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict
+    ) -> Dict[Text, Any]:
+        logger.info('inside extract_mac_slot')
+        slot_value = tracker.get_slot('id')
+        logger.info('... extracted mac {}'.format(slot_value))
+        return {"mac": slot_value}
+
+    def validate_mac(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: DomainDict,
+    ) -> Dict[Text, Any]:
+        logger.info('... validate mac {}'.format(slot_value))
+        slot_def = self.form_state.get('slot_def', '')
+
+        validate_value(slot_def, slot_value, self.form_state)
+        return {"mac": None}
+
+
+def validate_value(slot_def, slot_value, form_state):
+    '''
+    Validate the user input and update the form_state
+
+    :param slot_def:
+    :param slot_value:
+    :param slot_state:
+    :return:
+    '''
+    form_state['user_input'] = slot_value
+
+
+def check_mac_format(name):
+    if re.match("[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$", name.lower()):
+        replaced = re.sub('[-:]', '', name)
+        return True, replaced
+    return False, name
+
+def find_hostname(hostname):
+    if hostname == 'amin0':
+        number_found = 0
+    if hostname == 'amin1':
+        number_found = 1
+    if hostname == 'amin2':
+        number_found = 2
+    return number_found
+
+def find_sitename(sitename):
+    if sitename == 'mist0':
+        number_found = 0
+    if sitename == 'mist1':
+        number_found = 1
+    if sitename == 'mist2':
+        number_found = 2
+    return number_found
+
+
