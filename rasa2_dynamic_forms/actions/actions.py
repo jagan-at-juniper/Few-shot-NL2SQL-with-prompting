@@ -224,7 +224,7 @@ class ValidateTbshootForm(FormValidationAction):
         # self.count = self.condition
 
         logger.info('inside extract_hostname')
-        hostname = tracker.get_slot('hostname')
+        hostname = tracker.get_slot('id')
 
         return {"hostname": hostname}
 
@@ -235,7 +235,7 @@ class ValidateTbshootForm(FormValidationAction):
         # self.count = self.condition
 
         logger.info('inside extract_sitename')
-        sitename = tracker.get_slot('sitename')
+        sitename = tracker.get_slot('id')
 
         return {"sitename": sitename}
     
@@ -246,7 +246,7 @@ class ValidateTbshootForm(FormValidationAction):
         # self.count = self.condition
 
         logger.info('inside extract_deviceType')
-        deviceType = tracker.get_slot('deviceType')
+        deviceType = tracker.get_slot('id')
 
         return {"deviceType": deviceType}
 
