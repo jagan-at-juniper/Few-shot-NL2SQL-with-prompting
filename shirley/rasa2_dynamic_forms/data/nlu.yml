@@ -102,6 +102,7 @@ nlu:
 - intent: inform
   examples: |
     - [Amin](hostname)
+    - [Shirley](hostname)
     - my id name is [Amin](hostname)
     - id name is [abc](hostname)
     - id name is [xyz](hostname)

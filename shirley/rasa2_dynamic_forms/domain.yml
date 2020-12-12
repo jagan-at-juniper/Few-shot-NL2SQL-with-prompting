@@ -30,7 +30,7 @@ slots:
   mac:
     type: text
     influence_conversation: true
-  site_name:
+  sitename:
     type: text
     influence_conversation: true
   id:
