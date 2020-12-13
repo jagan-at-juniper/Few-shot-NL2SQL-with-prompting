@@ -59,7 +59,7 @@ responses:
   utter_ask_hostname:
   - text: Can you provide your hostname?
 
-  utter_ask_site_name:
+  utter_ask_sitename:
   - text: Can you provide your site name?
 
   utter_ask_mac:
