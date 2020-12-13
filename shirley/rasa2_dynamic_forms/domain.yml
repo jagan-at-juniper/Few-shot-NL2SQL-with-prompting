@@ -78,6 +78,9 @@ responses:
   utter_happy:
   - text: "Great, carry on!"
 
+  utter_submit:
+  - text: "Great, We identify the device you want to troubleshoot..."
+
   utter_goodbye:
   - text: "Bye"
 
@@ -92,3 +95,4 @@ session_config:
 
 actions:
 - validate_form_tbshoot
+- ts_action

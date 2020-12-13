@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Dict, Text, List, Optional, Any
 
-from rasa_sdk import Tracker
+from rasa_sdk import Tracker, Action
 from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.forms import FormValidationAction
@@ -118,7 +118,7 @@ class ValidateTbshootForm(FormValidationAction):
     ) -> Dict[Text, Any]:
         """Validate cuisine value."""
 
-        logger.info('validate_mac {}'.format(slot_value))
+        logger.info('validate_hostname {}'.format(slot_value))
         count = find_hostname(slot_value)
         if count == 1:
             dispatcher.utter_message('Perfect! Found one host')
@@ -136,6 +136,11 @@ class ValidateTbshootForm(FormValidationAction):
             self.form_state['asking_slots'] = ['sitename']
             return {"hostname": None}
 
+
+    def start_ts_entity(self, dispatcher, tracker, domain, entity_type, entity_id):
+        dispatcher.utter_message('Start TS entity...')
+
+
     def validate_sitename(
         self,
         slot_value: Any,
@@ -145,7 +150,7 @@ class ValidateTbshootForm(FormValidationAction):
     ) -> Dict[Text, Any]:
         """Validate cuisine value."""
 
-        logger.info('validate_mac {}'.format(slot_value))
+        logger.info('validate_sitename {}'.format(slot_value))
         count = find_sitename(slot_value)
         if count == 1:
             self.form_state['asking_slots'] = []
@@ -156,10 +161,35 @@ class ValidateTbshootForm(FormValidationAction):
             self.form_state['asking_slots'] = []
             return {"sitename": None}
         else:
-            dispatcher.utter_message('Hmm, can not pinpoint the site for the given name. '
-                                     'Maybe I should redirect you to different page?')
-            self.form_state['asking_slots'] = []
+            dispatcher.utter_message('Hmm, can not pinpoint the site for the given name. Ask for deviceType...')
+            self.form_state['asking_slots'] = ['deviceType']
             return {"sitename": None}
+
+    def validate_deviceType(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: DomainDict,
+    ) -> Dict[Text, Any]:
+        """Validate cuisine value."""
+
+        logger.info('validate_deviceType {}'.format(slot_value))
+        count = find_deviceType(slot_value)
+        if count == 1:
+            self.form_state['asking_slots'] = []
+            return {"deviceType": slot_value}
+        elif 2 <= count < 5:
+            # TODO
+            dispatcher.utter_message('Found multiple devices match the name: client1, client2.... which is the one?')
+            self.form_state['asking_slots'] = []
+            return {"deviceType": None}
+        else:
+            dispatcher.utter_message('Hmm, can not pinpoint the devices for the criteria. '
+                                     'Redirect you to somethere els...')
+            dispatcher.utter_message('End the form....')
+            self.form_state['asking_slots'] = []
+            return {"deviceType": None}
 
     async def extract_hostname(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict
@@ -269,4 +299,27 @@ def find_sitename(sitename):
         number_found = 2
     return number_found
 
+def find_deviceType(type):
+    number_found = 0
+    if type == 'iphone':
+        number_found = 1
+    if type == 'android':
+        number_found = 1
+    if type == 'mac':
+        number_found = 3
+    return number_found
 
+class TS_action(Action):
+
+    def name(self) -> Text:
+        return "ts_action"
+
+    async def run(
+        self,
+        dispatcher,
+        tracker: Tracker,
+        domain: "DomainDict",
+    ) -> List[Dict[Text, Any]]:
+
+        dispatcher.utter_message('Here is the troubleshoot results:.....')
+        return []
