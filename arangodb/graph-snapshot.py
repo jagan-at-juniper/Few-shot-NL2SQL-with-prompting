@@ -2,6 +2,8 @@
 #
 # ./dev-scripts/okta_spark jupyter-notebook --packages graphframes:graphframes:0.8.0-spark2.4-s_2.11
 #
+# spark_ipython  --name wenfeng --packages graphframes:graphframes:0.8.0-spark2.4-s_2.11
+#
 def test_device_graph():
     dt = "dt=2021-02-25"
     hr = "hr=03"
