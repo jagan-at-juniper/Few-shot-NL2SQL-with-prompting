@@ -64,7 +64,7 @@ def test_recommender():
 
     job = entity_suggestion_job(start_time, end_time, spark=spark, test_env='production', debug_mode=False)
     # job = entity_suggestion_job(start_time, end_time, spark=spark, debug_mode=False)
-    # suggestions, alerts = recommend_for_entity(job, 'ap')
+    suggestions, alerts = recommend_for_entity(job, 'ap')
 
     d = job.prepare_data()
     # d.map(lambda x: (x.get("event_name"), 1)).groupByKey().collect()
@@ -611,7 +611,7 @@ def check_coverage_candidates():
     # env = "staging"
 
     # s3_gs_bucket='s3://mist-aggregated-stats-{env}/ap-coverage-test/event_data_{env}/dt=2020-12-01/hr=*'.format(env=env)
-    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-02-16/hr=*/'
+    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-02-2*/hr=*/'
 
     df_events = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
@@ -702,6 +702,9 @@ def check_coverage_candidates():
                'ap_coverage_score', "ap_combined_score",
                "strong_neighbors","accomplice_ids",
                "off_neighbor_ids"]
+
+    df_selected_org.select(cols_2).orderBy(F.col("ap_combined_score").desc()).show(truncate=False)
+
     df_selected_org.filter(F.col("off_neighbors")>0).select(cols_2).show(truncate=False)
 
     cols = ["site_id", "ap_id", "band", 'sle_coverage', 'avg_nclients',
@@ -721,7 +724,7 @@ def check_coverage_candidates():
         F.max("strong_neighbors").alias("strong_neighbors"),
         F.max("accomplices").alias("accomplices"),
         F.max("off_neighbors").alias("off_neighbors"),
-        F.max("severity").alias("max_severity")
+        F.max("ap_combined_score").alias("max_severity")
     )
     df_selected_sites = df_selected_sites.orderBy(
         F.col('worst_combined_score').desc(),
@@ -731,13 +734,22 @@ def check_coverage_candidates():
     df_selected_sites.count()
     df_selected_sites.select("anomalies", "count_aps",
                              "avg_sle_coverage", "worst_coverage_score",
-                             "worset_combined_score", "sum_nclients",
+                             "worst_combined_score", "sum_nclients",
                              "strong_neighbors",
                              "accomplices", "off_neighbors").summary().show()
 
-    df_selected_sites.filter(F.col("band")=="24").show(10, truncate=False)
-    df_selected_sites.filter(F.col("band")=="5").show(10, truncate=False)
+    df_selected_sites.filter(F.col("band")=="24").orderBy(F.col("worst_combined_score").desc())\
+        .show(10, truncate=False)
 
+    df_selected_sites.filter(F.col("band")=="5").orderBy(F.col("worst_combined_score").desc())\
+        .show(10, truncate=False)
+
+
+    df_selected_sites.filter(F.col("band")=="24").filter(F.col("accomplices")>0).orderBy(F.col("worst_combined_score").desc()) \
+        .show(10, truncate=False)
+
+    df_selected_sites.filter(F.col("band")=="5").filter(F.col("accomplices")>=0).orderBy(F.col("sum_nclients").desc()) \
+        .show(10, truncate=False)
 
     df_selected_sites.filter("avg_sle_coverage < 0.5 and worset_combined_score > 0.7 and sum_nclients >30") \
         .show(20, truncate=False)
@@ -764,7 +776,7 @@ def check_es_events():
     #     print(i, orgs, sites, aps)
 
     s3_bucket = "s3://mist-aggregated-stats-production/entity_event/entity_event-production/" \
-                "dt=2021-01-30/hr=*/APCoverageEvent_*.seq".format("production", "staging")
+                "dt=2021-02-19/hr=*/APCoverageEvent_*.seq".format("production", "staging")
 
     print(s3_bucket)
     event_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
@@ -774,6 +786,9 @@ def check_es_events():
     sites= event_df.select("site_id").groupBy("site_id").count().orderBy("count", descending=True).count()
     orgs= event_df.select("org_id").groupBy("org_id").count().orderBy("count", descending=True).count()
     print(orgs, sites, aps)
+
+    select_org = "604411f1-4e45-4bed-9a69-cc37b247fdf9" # US- Sam's
+    df_selected_org = event_df.filter(F.col("org_id")==select_org)
 
     event_site_ap_df= event_df.select("org_id", "site_id", "ap_id").groupBy("org_id", "site_id")\
         .agg(F.count("ap_id").alias("counts"),
@@ -805,12 +820,12 @@ def check_es_events():
     event_df_org_site3.count()
 
 
-def get_suggestion():
+def get_suggestion_events():
 
     import json
     from pyspark.sql import functions as F
     s3_bucket = "s3://mist-aggregated-stats-production/entity_suggestion/" \
-                "entity_suggestion-production/dt=2021-02-0*/hr=*/*.seq".replace("production", "production")
+                "entity_suggestion-production/dt=2021-02-19*/hr=*/*.seq".replace("production", "production")
 
     suggestions_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
     suggestions_df = suggestions_rdd.toDF()
