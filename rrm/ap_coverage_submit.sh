@@ -1,8 +1,8 @@
 #!/bin/bash
 
 job_name=${1:- }
-day_of_task=${2:- 2020-10-16}
-ENV=${3:- producction}
+day_of_task=${2:-2020-10-16}
+ENV=${3:-production}
 spark_zip=./wenfeng/spark_jobs_test.zip
 
 if [ $job_name == "coverage_aggregator" ]; then
@@ -35,7 +35,7 @@ args=" --deploy-mode cluster --master yarn \
 --py-files ${spark_zip} \
 --files s3://mist-${ENV}-assets/enrichment_source/ap_mfg_info.csv \
 --conf spark.yarn.maxAppAttempts=1 \
---conf spark.driver.memoryOverhead=1024m "
+--conf spark.driver.memoryOverhead=2048m "
 
 jobs=" s3://mist-production-assets/services/spark_jobs/runner-v0.5.45.py \
 ${job_class} ${day_of_task} ${day_of_task} \
