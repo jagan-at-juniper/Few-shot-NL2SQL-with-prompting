@@ -18,11 +18,11 @@ def test_enrichment():
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1
+    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1/4
     end_time = start_time + 3600 * 1
     # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
 
-    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='production', debug_mode=False)
+    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='production', debug_mode=True)
 
     job.execute()
 
@@ -31,9 +31,9 @@ def test_detection():
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
     start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1
-    end_time = start_time + 3600
+    end_time = start_time + 3600 * 3
 
-    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='staging', debug_mode=True)
+    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='production', debug_mode=True)
     data = run_category_transform(job, 'all')
 
     data.count()
@@ -59,18 +59,20 @@ def test_recommender():
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) /4
-    end_time = start_time + 3600
+    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24)
+    end_time = start_time + 3600*12
 
-    job = entity_suggestion_job(start_time, end_time, spark=spark, test_env='production', debug_mode=False)
+    job = entity_suggestion_job(start_time, end_time, spark=spark, test_env='staging', debug_mode=False)
     # job = entity_suggestion_job(start_time, end_time, spark=spark, debug_mode=False)
     suggestions, alerts = recommend_for_entity(job, 'ap')
+
+    suggestions
 
     d = job.prepare_data()
     # d.map(lambda x: (x.get("event_name"), 1)).groupByKey().collect()
     data_rdd = d.filter(lambda x: x.get("event_name")=="insufficient_coverage")
     entity_type = "ap"
-    suggestions, alerts= job.execute_for_type(data_rdd, entity_type)
+    # suggestions, alerts= job.execute_for_type(data_rdd, entity_type)
 
     #
     recommender_config = job.config.get('suggestion_category')
@@ -419,7 +421,7 @@ def check_coverage_anomaly_from_ap_events():
 
     # joined with SLE-coverage
 
-    s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-01-08/hr=*/"
+    s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-02-28/hr=*/"
     df_ap_coverage_stats = spark.read.parquet(s3_bucket)
     # df_ap_coverage_stats.count()
     df_ap_coverage_stats.printSchema()
@@ -469,17 +471,6 @@ def check_coverage_anomaly_from_ap_events():
     df_ap.count()
     return df_ap
 
-def check_capacity_anomaly_from_ap_events():
-    s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt=2020-12-09/hr=*/'
-    df_capacity = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1])). \
-        filter(lambda x: x['event_type'] == "sle_capacity_anomaly") \
-        .map(lambda x: x.get("source")) \
-        .toDF()
-
-    df_capacity.printSchema()
-
-    df_capacity.count()
-    return df_capacity
 
 def check_coverage_anomaly_from_ap_events():
     s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt=2021-01-08/hr=*/'
@@ -496,7 +487,7 @@ def check_coverage_anomaly_from_ap_events():
 
 def check_top_scan():
 
-    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/top_1_time_epoch_by_site_ap_ap2_band/dt=2021-02-04/hr=*/*.csv'
+    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/top_1_time_epoch_by_site_ap_ap2_band/dt=2021-02-26/hr=*/*.csv'
     df_scan = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
         .load(s3_bucket)
@@ -519,7 +510,7 @@ def check_sticky_clients():
 
 def check_coverage_anomaly_stats():
 
-    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/coverage_anomaly_stats/dt=2021-02-19/hr=20/*.csv'
+    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/coverage_anomaly_stats/dt=2021-02-28/hr=20/*.csv'
     df_coverage_anomaly_stats = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
         .load(s3_bucket)
@@ -550,7 +541,7 @@ def check_coverage_anomaly_stats():
 def check_coverage_anomaly_stats_test():
     from pyspark.sql import functions as F
 
-    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats_test/dt=2021-02-*/hr=*/'
+    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats_test/dt=2021-03-*/hr=*/'
     df_ap_coverage_stats_test = spark.read.parquet(s3_bucket)
     df_ap_coverage_stats_test.printSchema()
 
@@ -611,7 +602,7 @@ def check_coverage_candidates():
     # env = "staging"
 
     # s3_gs_bucket='s3://mist-aggregated-stats-{env}/ap-coverage-test/event_data_{env}/dt=2020-12-01/hr=*'.format(env=env)
-    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-02-2*/hr=*/'
+    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-03-19/hr=*/'
 
     df_events = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
@@ -620,7 +611,8 @@ def check_coverage_candidates():
     print("df_events", df_events.count())
 
     df_filter = df_events.filter('avg_nclients>2.0 and ap_combined_score>0.5 and sle_coverage < 0.6 and'
-                                 '(accomplices > 1 or off_neighbors>0)')
+                                 '(accomplices > 1 or (accomplices > 0 and off_neighbors > 0))')
+
     # df_filter= df_events #.filter('avg_nclients>2.0')
     print("df_filter", df_filter.count())
     # df_events.count()
@@ -776,7 +768,7 @@ def check_es_events():
     #     print(i, orgs, sites, aps)
 
     s3_bucket = "s3://mist-aggregated-stats-production/entity_event/entity_event-production/" \
-                "dt=2021-02-19/hr=*/APCoverageEvent_*.seq".format("production", "staging")
+                "dt=2021-03-01/hr=*/APCoverageEvent_*.seq".format("production", "staging")
 
     print(s3_bucket)
     event_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
@@ -825,16 +817,17 @@ def get_suggestion_events():
     import json
     from pyspark.sql import functions as F
     s3_bucket = "s3://mist-aggregated-stats-production/entity_suggestion/" \
-                "entity_suggestion-production/dt=2021-02-19*/hr=*/*.seq".replace("production", "production")
+                "entity_suggestion-production/dt=2021-03-16*/hr=*/*.seq".replace("production", "production")
 
     suggestions_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
     suggestions_df = suggestions_rdd.toDF()
-    # suggestions_df.select("entity_type", "suggestion", "category", "symptom", "impact_scope", "display_name")\
-    #     .groupBy("entity_type", "suggestion", "category", "symptom", "impact_scope", "display_name")\
-    #     .count()\
-    #     .orderBy("entity_type", "category")\
-    #     .show()
-    suggestions_df_coverage = suggestions_df.filter(F.col("category")=="rf")
+    suggestions_df.select("entity_type", "suggestion", "category", "symptom", "impact_scope", "display_name")\
+        .groupBy("entity_type", "suggestion", "category", "symptom", "impact_scope", "display_name")\
+        .count()\
+        .orderBy("entity_type", "category")\
+        .show()
+
+    suggestions_df_coverage = suggestions_df.filter(F.col("category")=="layer_1")
     suggestions_df_coverage.count()
     suggestions_df_coverage.select("duration", "severity").summary().show()
 
