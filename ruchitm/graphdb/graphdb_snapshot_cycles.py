@@ -19,16 +19,22 @@ def load_data(date, hour):
 
 
 def process_data(df_active_edges, df_active_nodes):
+    """
+    * Filter out deviceType=='ap'
+    * create src, dst columns with mapping
+        src-->(source,sourcePort)
+        dst-->(target,targetPort)
+    """
     df_active_nodes = df_active_nodes.withColumnRenamed("siteId", "siteId_2")
-    df_join = df_active_edges.join(df_active_nodes,
-                                   [df_active_edges.source == df_active_nodes.mac,
-                                    df_active_edges.target == df_active_nodes.mac],
-                                   how='left')
+    df_join = df_active_edges.join(df_active_nodes, df_active_edges.source == df_active_nodes.mac)
+    df_active_nodes = df_active_nodes.withColumn('mac_target', df_active_nodes.mac) \
+        .withColumn('deviceType_target', df_active_nodes.deviceType)
+    df_join = df_join.join(df_active_nodes.select('mac_target', 'deviceType_target'),
+                           df_join.target == df_active_nodes.mac_target)
 
-    df_active_edges_filtered = df_join.filter(F.col('deviceType') != 'ap') \
-        .select('siteId', 'source', 'target', 'sourcePort', 'targetPort', 'sourceVendor', 'targetVendor', 'mac',
-                'model', 'deviceType')
-
+    df_active_edges_filtered = df_join.filter((F.col('deviceType') != 'ap') & (F.col('deviceType_target') != 'ap')) \
+        .select('siteId', 'source', 'target', 'sourcePort', 'targetPort', 'sourceVendor', 'targetVendor', 'deviceType',
+                'deviceType_target')
     df_active_edges_filtered = df_active_edges_filtered.withColumn('src', F.concat_ws("__", F.col('source'),
                                                                                       F.col('sourcePort'))) \
         .withColumn('dst', F.concat_ws("__", F.col('target'), F.col('targetPort')))
