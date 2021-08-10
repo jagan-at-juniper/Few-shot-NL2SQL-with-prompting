@@ -235,8 +235,11 @@ def sm_ExponentialSmoothing(df, metric, resamp_freq, stdev=5):
     df_resample.loc[df_resample['anomaly'] == -1, 'importance'] = \
         (df_resample['lower_limit'] - df_resample['value']) / df_resample['value']
 
+
+
     num_anoms = len(df_resample[df_resample.anomaly != 0])
     anoms = df_resample[df_resample.anomaly != 0]
+
     marker_sizes = []
     start = 30
     for i in list(anoms.importance):
@@ -249,7 +252,7 @@ def sm_ExponentialSmoothing(df, metric, resamp_freq, stdev=5):
 
     fig.add_trace(
         go.Scatter(x=df_resample[df_resample.anomaly != 0].index, y=df_resample[df_resample.anomaly != 0]['value'],
-                   mode='markers', opacity=0.7, marker={'color': 'red', 'size': marker_sizes}, name=metric),
+                   mode='markers', opacity=0.7, marker={'color': 'red', 'size': marker_sizes}, name='Anomalies'),
         row=4, col=1)
 
     fig.add_trace(
@@ -268,7 +271,7 @@ def sm_ExponentialSmoothing(df, metric, resamp_freq, stdev=5):
 
 # PROPHET
 
-def fit_prophet(df, metric, resamp_freq, interval_width=.999, changepoint_range=.01):
+def fit_prophet(df, metric, resamp_freq, interval_width=.99, changepoint_range=.01):
     """Takes in dataframe, metric/column name(str),
      resampling frequency ('20T' = 20 min). Interval
      width and change point range set for maximum band
