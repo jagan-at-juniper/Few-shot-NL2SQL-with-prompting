@@ -1,5 +1,6 @@
 ## Time Series Anomaly Detection Library
 ### Notes
+* main.py contains all functions
 * Meant to catch long term anomalies
 * Two models
   * ExponentialSmoothing from statsmodels
