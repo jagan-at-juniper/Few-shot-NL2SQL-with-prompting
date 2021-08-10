@@ -1,6 +1,7 @@
 ## Time Series Anomaly Detection Library
 ### Notes
-* main.py contains all functions
+* utils.py contains data loading, checking, and querying functions
+* model.py contains model fitting and anomaly detection/visualization functuons
 * Meant to catch long term anomalies
 * Two models
   * ExponentialSmoothing from statsmodels
