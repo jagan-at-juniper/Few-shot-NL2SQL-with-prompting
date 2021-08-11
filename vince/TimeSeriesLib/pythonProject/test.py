@@ -11,14 +11,18 @@ warnings.filterwarnings("ignore")
 
 from statsmodels.tsa.api import ExponentialSmoothing
 from fbprophet import Prophet
-import main
+import model
+import utils
 
 sleroam = pd.read_csv('data/sleroam.csv')
-#print(main.date_range(sleroam))
-print(main.sm_ExponentialSmoothing(sleroam,' sle_roaming_v2_impact_dist_by_site_c|aws|eu|flink-lag', '20T'))
+#print(utils.date_range(sleroam))
+pred=(model.fit_sm_ExponentialSmoothing(sleroam, ' sle_roaming_v2_impact_dist_by_site_c|aws|eu|flink-lag', '20T'))
+anoms = model.sm_detect_anomalies(pred[0], pred[1], stdev=5)
+model.sm_plot_anomalies(anoms, pred[1])
+print(anoms)
 
-pred = main.fit_prophet(sleroam,' sle_roaming_v2_impact_dist_by_site_c|aws|eu|flink-lag', '20T')
-anoms = main.detect_anomalies(pred)
-#print(main.plot_anomalies(anoms))
+#pred = model.fit_prophet(sleroam, ' sle_roaming_v2_impact_dist_by_site_c|aws|eu|flink-lag', '20T')
+#anoms = model.detect_anomalies(pred)
+#print(model.plot_anomalies(anoms))
 
-#print(main.plot_proph_importance(anoms))
+#print(model.plot_proph_importance(anoms))
