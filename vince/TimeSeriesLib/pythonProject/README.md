@@ -28,19 +28,38 @@ with "stats" in column name)
 
 ### Model Fitting and Anomaly Detection
 If there are known anomalies, use remove_known_outliers() to prevent overfitting. The function
-removes data points between date ranges using epoch time. Both statsmodels and Propget can handle missing 
+removes data points between date ranges using epoch time. Both statsmodels and Prophet can handle missing 
 data. 
 
 #### statsmodels 
 * Returns visualization of data and anomalies if present.
 
-parameters
+fit_sm_ExponentialSmoothing() parameters
 * df – pandas dataframe
 * metric – column name (string)
 * resamp_freq – resampling frequency ("20T" = 20min) (string)
+
+Returns two dataframes in a tuple (both used for detecting and plotting):
+1. df_resample - resampled dataframe at specified resampling frequency
+2. states - dataframe with level, seasonality, and residual
+
+sm_detect_anomalies() parameters
+* df_resample - resampled dataframe from fit_sm_ExponentialSmoothing() (first dataframe)
+* states - dataframe from fit_sm_ExponentialSmoothing() (second dataframe)
 * stdev = 5 
   * arbitrarily set to 5 standard deviations away from forecast to avoid false positive
   * can be tuned depending on your use case
+
+Returns dataframe with upper/lower bands, determines if a datapoint is an anomaly
+if it is above or below bands, and calculates importance of
+an anomaly using the equation abs(prediction-true)/true.
+
+sm_plot_anomalies() parameters
+* anomalies - dataframe from sm_detect_anomalies()
+* states - second dataframe from fit_sm_ExponentialSmoothing()
+
+Returns interactive visualization displaying true datapoints, upper & lower bounds,
+and anomalies if they exist. 
 
 #### Prophet
 
