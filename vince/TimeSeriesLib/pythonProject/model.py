@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import warnings
@@ -121,4 +122,14 @@ def sm_plot_anomalies(anomalies, states):
 
     fig.update_layout(width=1300, height=1300)
 
+    return fig.show()
+
+def plot_importance(pred):
+    """Takes in prediction
+    and return line plot of anomaly
+    importance"""
+    df = pred.copy()
+    df.reset_index(inplace=True)
+    fig = px.line(df, x="date", y="importance",
+                  title="Line Chart of Anomaly Importance")
     return fig.show()
