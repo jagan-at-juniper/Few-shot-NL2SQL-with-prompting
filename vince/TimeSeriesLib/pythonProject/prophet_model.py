@@ -8,18 +8,33 @@ warnings.filterwarnings("ignore")
 
 # PROPHET
 
-def fit_prophet(df, metric, resamp_freq, interval_width=.99, changepoint_range=.01):
+def fit_prophet(df, date_col, metric, frequency, resamp_freq, interval_width=.99, changepoint_range=.01):
     """Takes in dataframe, metric/column name(str),
      resampling frequency ('20T' = 20 min). Interval
      width and change point range set for maximum band
      width. Fits the data and returns dataframe of
-     predictions (yhat upper & lower)"""
-    df = df[['date', metric]]
-    df['date'] = pd.to_datetime(df.date)
-    df = df.sort_values(['date'])
-    df = df.set_index('date')
+     predictions (yhat upper & lower)
+
+     Parameters:
+        df (pandas dataframe): dataframe we want to analyze
+        date_col (str): name of date/time column
+        metric (str): name of column we want to analyze
+        frequency (str): frequency alias (i.e. '20T' = 20 min, '30S' = 30 secs)
+        resamp_freq (str): ending epoch of known outliers in milliseconds
+        interval_width=.99: set interval width to maximum width
+        changepoint_range=.01: also helps set maximum width to reduce false positives
+
+    Returns:
+        fig1: matplotlib visualization with prediction bands, prediction, and truepoints
+        forecast (pandas dataframe): dataframe with predictions, prediction bands, and much more information
+        on model
+     """
+    df = df[[date_col, metric]]
+    df[date_col] = pd.to_datetime(df.date)
+    df = df.sort_values([date_col])
+    df = df.set_index(date_col)
     df.columns = ['value']
-    df = df.asfreq(freq='T')
+    df = df.asfreq(freq=frequency)
     df_resample = df.resample(resamp_freq).mean()
     df_resample = df_resample.reset_index()
     df_resample.columns = ['ds', 'y']
@@ -37,10 +52,19 @@ def fit_prophet(df, metric, resamp_freq, interval_width=.99, changepoint_range=.
 
 
 def detect_anomalies(forecast):
-    """Takes in dataframe from
+    """
+    Takes in dataframe from
     fit_prophet. Determines if
     data point is an anomaly.
-    Returns a dataframe."""
+    Returns a dataframe.
+
+    Parameters:
+        forecast (pandas dataframe): dataframe from fit_prophet()
+
+    Returns:
+        forecasted (pandas dataframe): dataframe with date, upper/lower confidence bands, anomalies, and importances
+
+    """
     forecasted = forecast[['ds', 'trend', 'yhat', 'yhat_lower', 'yhat_upper', 'fact']].copy()
 
     forecasted['yhat_lower'] = forecasted['yhat_lower'].apply(lambda x: max(x, 0))
@@ -61,7 +85,15 @@ def detect_anomalies(forecast):
 def plot_anomalies(forecasted):
     """Takes in output from
     detect_anomalies. Returns
-    visualization of outliers."""
+    visualization of outliers.
+
+    Parameters:
+        forecasted (pandas dataframe): dataframe from detect_anomalies()
+
+    Returns:
+        fig (plotly visualization): visualization with true points, upper & lower bands, and anomalies
+                                    if they exists (marked in red) as well as time series decomposition
+    """
     fig = make_subplots(rows=1, cols=1)
     fig.update_layout(title_text="Anomaly Detection",
                       title_font_size=30)
@@ -102,9 +134,17 @@ def plot_anomalies(forecasted):
     return fig.show()
 
 def plot_proph_importance(proph_pred):
-    """Takes in Prophet prediction
+    """
+    Takes in Prophet prediction
     and return line plot of anomaly
-    importance"""
+    importance
+
+    Parameters:
+        proph_pred (pandas dataframe): dataframe from detect_anomalies()
+
+    Returns:
+        fig (plotly visualization): visualization of anomalies' importance if they exist
+    """
     fig = px.line(proph_pred, x="ds", y="importance",
                   title="Line Chart of Anomaly Importance")
     return fig.show()

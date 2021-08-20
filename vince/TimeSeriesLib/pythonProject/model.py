@@ -11,49 +11,92 @@ warnings.filterwarnings("ignore")
 
 # UNIVARIATE FEATURE SELECTION & ANOMALY DETECTION
 
-def remove_known_outliers(df, start_remove, end_remove):
-    """Takes in dataframe and starting and ending epoch
+def remove_known_outliers(df, date_col, start_remove, end_remove):
+    """
+    Takes in dataframe and starting and ending epoch
     (in ms) of known outliers. Returns dataframe without
-    set of continuous outliers."""
-    df = df.sort_values(by=['date'])
+    set of continuous outliers.
+
+    Parameters:
+        df (pandas dataframe): dataframe we want to analyze
+        date_col (str): name of date/time column
+        start_remove (int): starting epoch of known outliers in milliseconds
+        end_remove (int): ending epoch of known outliers in milliseconds
+
+    Returns:
+        df (pandas dataframe): dataframe without a known outliers (continuous)
+    """
+    df = df.sort_values(by=[date_col])
     start_remove = pd.to_datetime(start_remove,unit='ms')
     end_remove = pd.to_datetime(end_remove,unit='ms')
-    df['date'] = pd.to_datetime(df['date'])
+    df[date_col] = pd.to_datetime(df[date_col])
     df.set_index('date', inplace=True)
     return df.loc[(df.index < start_remove) | (df.index > end_remove)]
 
 # STATSMODELS EXPONENTIALSMOOTHING
 
-def fit_sm_ExponentialSmoothing(df, metric, resamp_freq):
-    """Takes in dataframe,
+def fit_sm_ExponentialSmoothing(df, date_col, metric_col, frequency, resamp_freq):
+    """
+    Takes in dataframe,
     metric (string), resample frequency (string).
     Fits and returns two dataframes. One is
     the original dataframne after resampling.
     The other is a dataframe of the data's
-    decomposition."""
-    df = df[['date', metric]]
-    df['date'] = pd.to_datetime(df.date)
-    df = df.sort_values(['date'])
-    df = df.set_index('date')
-    df.columns = ['value']
-    df = df.asfreq(freq='T')
-    df_resample = df.resample(resamp_freq).mean()
-    period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
-    # period = number of data points per hour after resampling
-    # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
-    mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
-                               trend='add', seasonal='add',
-                               use_boxcox=None, initialization_method="estimated",
-                               missing='drop')
+    decomposition.
 
-    res = mod.fit()
-    states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
-                          columns=['level', 'seasonal', 'resid'], index=df_resample.index)
+    Parameters:
+        df (pandas dataframe): dataframe we want to analyze
+        date_col (str): name of date/time column
+        metric_col (str): name of column we want to analyze
+        frequency (str): frequency alias (i.e. '20T' = 20 min, '30S' = 30 secs)
+        resamp_freq (str): ending epoch of known outliers in milliseconds
+
+    Returns:
+        df_resample (pandas dataframe): dataframe after resampling - later used to forecast & detect anomalies
+        states (pandas dataftame): dataframe with time series decomposition (level, seasonality, residual)
+    """
+    df = df[[date_col, metric_col]]
+    df[date_col] = pd.to_datetime(df.date)
+    df = df.sort_values([date_col])
+    df = df.set_index(date_col)
+    df.columns = ['value']
+    df = df.asfreq(freq=frequency)
+    df_resample = df.resample(resamp_freq).mean()
+    try:
+        if frequency == 'T':
+            period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
+        elif frequency == 'S':
+            period = (60 / (int(re.findall("\d+", resamp_freq)[0]))) * 60
+    except:
+        print('data must be in minute or second frequency! (T/S)')
+    finally:
+        # period = number of data points per hour after resampling
+        # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
+        mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
+                                   trend='add', seasonal='add',
+                                   use_boxcox=None, initialization_method="estimated",
+                                   missing='drop')
+
+        res = mod.fit()
+        states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
+                              columns=['level', 'seasonal', 'resid'], index=df_resample.index)
     return (df_resample, states)
 
 def sm_detect_anomalies(df_resample, states, stdev=5):
-    """Takes in the two dataframes from fit_sm_ExponentialSmoothing()
-    and determines if a datapoint is an anomaly. Returns a dataframe."""
+    """
+    Takes in the two dataframes from fit_sm_ExponentialSmoothing()
+    and determines if a datapoint is an anomaly. Returns a dataframe.
+
+    Parameters:
+        df_resample (pandas dataframe): dataframe we want to analyze
+        states (pandas dataframe): name of date/time column
+        stdev (int): the amount of standard deviations away the confidence bands should be set
+                    * prediction +/- stdev*residual.std()
+    Returns:
+        anomalies (pandas dataframe): dataframe with resampled value, upper & lower limit,
+                                      anomaly (0 false / 1 true), and anomaly importance
+    """
+
     total = states['level'].mean() + states['seasonal']
     resid = df_resample['value'] - total
     upper_limit = total + (stdev * resid.std())
@@ -75,9 +118,19 @@ def sm_detect_anomalies(df_resample, states, stdev=5):
     return anomalies
 
 def sm_plot_anomalies(anomalies, states):
-    """Takes in dataframe from sm_detect_anomalies()
+    """
+    Takes in dataframe from sm_detect_anomalies()
     and decomposition dataframe from fit_sm_ExponentialSmoothing()
-    to plot anomalies if they exist."""
+    to plot anomalies if they exist.
+
+     Parameters:
+         anomalies (pandas dataframe): dataframe/output from sm_detect_anomalies()
+         states (pandas dataframe): dataframe with time series decomposition from fit_sm_ExponentialSmoothing()
+
+    Returns:
+        fig (plotly visualization): visualization with true points, upper & lower bands, and anomalies
+                                    if they exists (marked in red) as well as time series decomposition
+    """
     fig = make_subplots(rows=4, cols=1,
                         subplot_titles=("Level", "Sesonality", "Residual", "Anomaly Detection"))
 
@@ -124,12 +177,21 @@ def sm_plot_anomalies(anomalies, states):
 
     return fig.show()
 
-def plot_importance(pred):
-    """Takes in prediction
+def plot_importance(pred, date_col):
+    """
+    Takes in prediction
     and return line plot of anomaly
-    importance"""
+    importance.
+
+    Parameters:
+        pred (pandas dataframe): dataframe from sm_detect_anomalies()
+        date_col (str): name of date/time column
+
+    Returns:
+        fig (plotly visualization): visualization of anomalies' importance if they exist
+    """
     df = pred.copy()
     df.reset_index(inplace=True)
-    fig = px.line(df, x="date", y="importance",
+    fig = px.line(df, x=date_col, y="importance",
                   title="Line Chart of Anomaly Importance")
     return fig.show()
