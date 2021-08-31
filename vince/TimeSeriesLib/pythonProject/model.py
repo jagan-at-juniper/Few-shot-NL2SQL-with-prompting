@@ -35,7 +35,7 @@ def remove_known_outliers(df, date_col, start_remove, end_remove):
 
 # STATSMODELS EXPONENTIALSMOOTHING
 
-def fit_sm_ExponentialSmoothing(df, date_col, metric_col, resample, resamp_freq=None, frequency=None):
+def fit_sm_ExponentialSmoothing(df, date_col, metric_col, resample, resamp_freq=None):
     """
     Takes in dataframe,
     metric (string), resample frequency (string).
@@ -50,7 +50,8 @@ def fit_sm_ExponentialSmoothing(df, date_col, metric_col, resample, resamp_freq=
         metric_col (str): name of column we want to analyze
         resample (bool): True if resampling needed, False to keep current timestamp
         resamp_freq (str): resample frequency if necessary
-        frequency (str): frequency alias (i.e. '20T' = 20 min, '30S' = 30 secs)
+
+        NOTE: resamp_freq must be higher than original frequency
 
     Returns:
         df_resample (pandas dataframe): dataframe after resampling - later used to forecast & detect anomalies
@@ -64,46 +65,23 @@ def fit_sm_ExponentialSmoothing(df, date_col, metric_col, resample, resamp_freq=
     # if we want to resample
     if resample:
         df_resample = df.resample(resamp_freq).mean()
-        try:
-            if 'T' in str(resamp_freq):
-                period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
-            elif 'S' in str(resamp_freq):
-                period = (60 / (int(re.findall("\d+", resamp_freq)[0]))) * 60
-        except:
-            print('data must be in minute or second frequency! (T/S)')
-        finally:
-            # period = number of data points per hour after resampling
-            # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
-            mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
-                                       trend='add', seasonal='add',
-                                       use_boxcox=None, initialization_method="estimated",
-                                       missing='drop')
-
-            res = mod.fit()
-            states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
-                                  columns=['level', 'seasonal', 'resid'], index=res.level.index)
-    # if we want to keep the frequency as is or want to specify a certain frequency
+        if 'T' in str(resamp_freq):
+            period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
+        elif 'S' in str(resamp_freq):
+            period = (60 / (int(re.findall("\d+", resamp_freq)[0]))) * 60
     else:
-        if frequency is not None:
-            df_resample = df.asfreq(freq=frequency)
-        try:
-            if 'T' in str(frequency):
-                period = 60 / (int(re.findall("\d+", frequency)[0]))
-            elif 'S' in str(frequency):
-                period = (60 / (int(re.findall("\d+", frequency)[0]))) * 60
-        except:
-            print('data must be in minute or second frequency! (T/S)')
-        finally:
-            # period = number of data points per hour after resampling
-            # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
-            mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
-                                       trend='add', seasonal='add',
-                                       use_boxcox=None, initialization_method="estimated",
-                                       missing='drop')
+        df_resample = df
+        period = (int(re.findall("\d+", pd.infer_freq(df_resample.index))[0]))
+    # period = number of data points per hour after resampling
+    # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
+    mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
+                               trend='add', seasonal='add',
+                               use_boxcox=None, initialization_method="estimated",
+                               missing='drop')
 
-            res = mod.fit()
-            states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
-                                  columns=['level', 'seasonal', 'resid'], index=res.level.index)
+    res = mod.fit()
+    states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
+                          columns=['level', 'seasonal', 'resid'], index=res.level.index)
     return (df_resample, states)
 
 def sm_detect_anomalies(df_resample, states, stdev=5):
