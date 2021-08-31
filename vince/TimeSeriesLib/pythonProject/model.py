@@ -30,12 +30,12 @@ def remove_known_outliers(df, date_col, start_remove, end_remove):
     start_remove = pd.to_datetime(start_remove,unit='ms')
     end_remove = pd.to_datetime(end_remove,unit='ms')
     df[date_col] = pd.to_datetime(df[date_col])
-    df.set_index('date', inplace=True)
+    df.set_index(date_col, inplace=True)
     return df.loc[(df.index < start_remove) | (df.index > end_remove)]
 
 # STATSMODELS EXPONENTIALSMOOTHING
 
-def fit_sm_ExponentialSmoothing(df, date_col, metric_col, frequency, resamp_freq):
+def fit_sm_ExponentialSmoothing(df, date_col, metric_col, resample, resamp_freq=None, frequency=None):
     """
     Takes in dataframe,
     metric (string), resample frequency (string).
@@ -48,8 +48,9 @@ def fit_sm_ExponentialSmoothing(df, date_col, metric_col, frequency, resamp_freq
         df (pandas dataframe): dataframe we want to analyze
         date_col (str): name of date/time column
         metric_col (str): name of column we want to analyze
+        resample (bool): True if resampling needed, False to keep current timestamp
+        resamp_freq (str): resample frequency if necessary
         frequency (str): frequency alias (i.e. '20T' = 20 min, '30S' = 30 secs)
-        resamp_freq (str): ending epoch of known outliers in milliseconds
 
     Returns:
         df_resample (pandas dataframe): dataframe after resampling - later used to forecast & detect anomalies
@@ -60,26 +61,49 @@ def fit_sm_ExponentialSmoothing(df, date_col, metric_col, frequency, resamp_freq
     df = df.sort_values([date_col])
     df = df.set_index(date_col)
     df.columns = ['value']
-    df = df.asfreq(freq=frequency)
-    df_resample = df.resample(resamp_freq).mean()
-    try:
-        if frequency == 'T':
-            period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
-        elif frequency == 'S':
-            period = (60 / (int(re.findall("\d+", resamp_freq)[0]))) * 60
-    except:
-        print('data must be in minute or second frequency! (T/S)')
-    finally:
-        # period = number of data points per hour after resampling
-        # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
-        mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
-                                   trend='add', seasonal='add',
-                                   use_boxcox=None, initialization_method="estimated",
-                                   missing='drop')
+    # if we want to resample
+    if resample:
+        df_resample = df.resample(resamp_freq).mean()
+        try:
+            if 'T' in str(resamp_freq):
+                period = 60 / (int(re.findall("\d+", resamp_freq)[0]))
+            elif 'S' in str(resamp_freq):
+                period = (60 / (int(re.findall("\d+", resamp_freq)[0]))) * 60
+        except:
+            print('data must be in minute or second frequency! (T/S)')
+        finally:
+            # period = number of data points per hour after resampling
+            # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
+            mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
+                                       trend='add', seasonal='add',
+                                       use_boxcox=None, initialization_method="estimated",
+                                       missing='drop')
 
-        res = mod.fit()
-        states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
-                              columns=['level', 'seasonal', 'resid'], index=df_resample.index)
+            res = mod.fit()
+            states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
+                                  columns=['level', 'seasonal', 'resid'], index=res.level.index)
+    # if we want to keep the frequency as is or want to specify a certain frequency
+    else:
+        if frequency is not None:
+            df_resample = df.asfreq(freq=frequency)
+        try:
+            if 'T' in str(frequency):
+                period = 60 / (int(re.findall("\d+", frequency)[0]))
+            elif 'S' in str(frequency):
+                period = (60 / (int(re.findall("\d+", frequency)[0]))) * 60
+        except:
+            print('data must be in minute or second frequency! (T/S)')
+        finally:
+            # period = number of data points per hour after resampling
+            # seasonal_periods = (24 hours in a day)*period+1(make odd number as needed from statsmodels)
+            mod = ExponentialSmoothing(df_resample, seasonal_periods=24 * period + 1,
+                                       trend='add', seasonal='add',
+                                       use_boxcox=None, initialization_method="estimated",
+                                       missing='drop')
+
+            res = mod.fit()
+            states = pd.DataFrame(np.c_[res.level, res.season, res.resid],
+                                  columns=['level', 'seasonal', 'resid'], index=res.level.index)
     return (df_resample, states)
 
 def sm_detect_anomalies(df_resample, states, stdev=5):
