@@ -1,6 +1,5 @@
 import pyspark.sql.functions as F
 from pyspark.sql.types import BooleanType, ArrayType, StringType
-import networkx as nx
 
 
 def load_data(date, hour):
@@ -8,40 +7,34 @@ def load_data(date, hour):
     component = 'device'
     prefix_edges = f"s3://mist-aggregated-stats-{ENV}/aggregated-stats/graph/snapshots/{component}-edges/"
     prefix_nodes = f"s3://mist-aggregated-stats-{ENV}/aggregated-stats/graph/snapshots/{component}-nodes/"
+
     df_edges = readParquet(prefix_edges, dates=date, hour=hour)
+    df_edges = df_edges.withColumn('isExpired', F.when(F.isnull(F.col('expiredAt')), 'False').otherwise('True'))
+    df_active_edges = df_edges.filter(F.col('isExpired') == False)
     df_nodes = readParquet(prefix_nodes, dates=date, hour=hour)
-    return df_edges, df_nodes
+    df_nodes = df_nodes.withColumn('isExpired', F.when(F.isnull(F.col('expiredAt')), 'False').otherwise('True'))
+    df_active_nodes = df_nodes.filter(F.col('isExpired') == False)
+
+    return df_active_edges, df_active_nodes
 
 
-def process_data(df_edges, df_nodes):
+def process_data(df_active_edges, df_active_nodes):
     """
     * Filter out deviceType=='ap'
     * create src, dst columns with mapping
         src-->(source,sourcePort)
         dst-->(target,targetPort)
     """
-    df_edges = df_edges.withColumn('isExpired', F.when(F.isnull(F.col('expiredAt')), 'False').otherwise('True'))
-    df_active_edges = df_edges.filter(F.col('isExpired') == False)
-    df_active_edges = df_active_edges.filter(F.col('relType') == 'uplink')
-
-    df_nodes = df_nodes.withColumn('isExpired', F.when(F.isnull(F.col('expiredAt')), 'False').otherwise('True'))
-    df_active_nodes = df_nodes.filter(F.col('isExpired') == False)
-    df_active_nodes = df_active_nodes.withColumnRenamed("siteId", "siteId_copy")
-
-    df_join = df_active_edges.join(df_active_nodes, [df_active_edges.source == df_active_nodes.mac,
-                                                     df_active_edges.siteId == df_active_nodes.siteId_copy]) \
-        .drop('siteId_copy')
-
+    df_active_nodes = df_active_nodes.withColumnRenamed("siteId", "siteId_2")
+    df_join = df_active_edges.join(df_active_nodes, df_active_edges.source == df_active_nodes.mac)
     df_active_nodes = df_active_nodes.withColumn('mac_target', df_active_nodes.mac) \
         .withColumn('deviceType_target', df_active_nodes.deviceType)
-
-    df_join = df_join.join(df_active_nodes.select('mac_target', 'deviceType_target', 'siteId_copy'),
-                           [df_join.target == df_active_nodes.mac_target,
-                            df_join.siteId == df_active_nodes.siteId_copy])
+    df_join = df_join.join(df_active_nodes.select('mac_target', 'deviceType_target'),
+                           df_join.target == df_active_nodes.mac_target)
 
     df_active_edges_filtered = df_join.filter((F.col('deviceType') != 'ap') & (F.col('deviceType_target') != 'ap')) \
         .select('siteId', 'source', 'target', 'sourcePort', 'targetPort', 'sourceVendor', 'targetVendor', 'deviceType',
-                'deviceType_target', 'relType')
+                'deviceType_target')
 
     df_active_edges_filtered = df_active_edges_filtered.withColumn('src', F.concat_ws("__", F.col('source'),
                                                                                       F.col('sourcePort'))) \
@@ -172,13 +165,9 @@ class Cycles:
         return self.printCycles()
 
 
-# def find_cycles(graph):
-#     cycles = Cycles(graph)
-#     return cycles.findCycles()
-
 def find_cycles(graph):
-    g = nx.DiGraph(graph)
-    return list(nx.simple_cycles(g))
+    cycles = Cycles(graph)
+    return cycles.findCycles()
 
 
 udf_findCycles = F.udf(find_cycles, ArrayType(ArrayType(StringType())))
