@@ -11,7 +11,7 @@ import json
 def check_roam():
     import json
     s3_bucket =  "s3://mist-secorapp-production/client-roam/client-roam-production/" \
-            "dt=2021-02-16/hr=*/*.seq"  #.format("production", "")
+            "dt=2021-03-129/hr=20/*.seq"  #.format("production", "")
 
     print(s3_bucket)
     client_roam_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
@@ -41,10 +41,18 @@ def client_pingpong():
 
 
 def sticky_client():
-    s3_bucket = "s3://mist-secorapp-production/sticky-client-production/sticky-client-production/-production/" \
-                "dt=2021-02-11/hr=*/*.seq"  #.format("production", "")
+    import json
+    s3_bucket = "s3://mist-secorapp-production/sticky-client/sticky-client-production/" \
+                "dt=2021-03-29/hr=20/*.seq"  #.format("production", "")
     print(s3_bucket)
     sticky_client_rdd = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1]))
-    sticky_client_df = client_suboptimal_roam_rdd.toDF()
+    sticky_client_df = sticky_client_rdd.toDF()
     sticky_client_df.printSchema()
-    sticky_client_df.count()
+    # sticky_client_df.count()
+
+    sticky_1 = sticky_client_rdd.filter(lambda x: x.get("Assoc").get("AP")=="5c-5b-35-53-ac-a5")
+    sticky_2 = sticky_client_rdd.filter(lambda x: x.get("Assoc").get("AP")=="5c-5b-35-d0-3e-c6")
+
+    from operator import add
+    sticky_1.map(lambda x: (x.get("WC"), 1)).reduceByKey(add).collect()
+    sticky_2.map(lambda x: (x.get("WC"), 1)).reduceByKey(add).collect()

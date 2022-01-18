@@ -6,45 +6,137 @@ def test_aggregator():
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 5
-    end_time = start_time + 3600
-    # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
+    start_time = current_epoch_seconds() - 3600 * 5 #//(3600*24) * (3600*24) - 3600* 24*2   #//(3600*24) * (3600*24) - (3600*24) * 1
+    end_time = start_time + 3600 * 1
+    data_source = "ap-events"     #  yaml file name
 
-    job = stats_aggregator_job(start_time, end_time, "ap-events",  spark, "staging")
+    job = stats_aggregator_job(start_time, end_time, data_source,  spark, test_env="staging", debug_mode=False)
     job.execute()
+
+    # for i in range(24, 2, -1):
+    #     start_time = current_epoch_seconds() - 3600 * i #//(3600*24) * (3600*24) - 3600* 24*2   #//(3600*24) * (3600*24) - (3600*24) * 1
+    #     end_time = start_time + 3600 * 1
+    #     # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
+    #     try:
+    #         job = stats_aggregator_job(start_time, end_time, "ap-events",  spark, test_env="staging", debug_mode=False)
+    #         job.execute()
+    #     except Exception as e:
+    #         print(e)
+
+
+def test_():
+    from analytics.utils.time_util import current_epoch_seconds
+    from analytics.jobs.utils import *
+    start_epoch = current_epoch_seconds() - 3600 * 5 #//(3600*24) * (3600*24) - 3600* 24*2   #//(3600*24) * (3600*24) - (3600*24) * 1
+    end_epoch = start_epoch + 3600 * 1
+    data_source = "ap-events"
+    test_env = "staging"
+    debug_mode = True
+
+    job = StatsAggregator()
+    job.data_source = data_source
+    job.start_epoch = start_epoch
+    job.end_epoch = end_epoch
+    job.spark = spark
+
+    if spark is None:
+        job.delay_spark_context = True
+
+    job.env = test_env
+    job.debug_mode = debug_mode
+    job.host_suffix = '-%s.mist.pvt' % job.env
+
+    job.populate_env_config()
+    job.pre_execution()
+
 
 
 def test_enrichment():
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1/4
+    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 2
     end_time = start_time + 3600 * 1
     # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
 
-    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='production', debug_mode=True)
+    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='production')
 
     job.execute()
 
-def test_detection():
+
+def test_enrichment_t():
+
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1
-    end_time = start_time + 3600 * 3
+    start_time = current_epoch_seconds() -3600 *3  # //(3600*24) * (3600*24) - (3600*24) * 3
+    end_time = start_time + 3600 * 1
+    # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
 
-    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='production', debug_mode=True)
+    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='production')
+
+    job.execute()
+
+
+    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='production')
     data = run_category_transform(job, 'all')
-
-    data.count()
+    # data.count()
+    data.printSchema()
 
     gen = get_event_generator(job, 'all', 'APCoverageEvent')
     event_rdd = gen.generate_event(data, spark)
     event_df = event_rdd.toDF()
+    event_df.count()
+
+
+    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats_test/dt=2021-10-07/hr=10/'
+    df_ap_coverage_stats_test = spark.read.parquet(s3_bucket)
+    df_ap_coverage_stats_test.printSchema()
+
+    df_ap_coverage_stats_test.select("sle_coverage").summary().show()
+
+    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-10-02/hr=00/'
+    df_ap_coverage_stats = spark.read.parquet(s3_bucket)
+    df_ap_coverage_stats.printSchema()
+
+    df_ap_coverage_stats.select("ap1_anomaly_type", "ap1_capcity_anomaly_type",
+                            "ap2_anomaly_type", "ap2_capcity_anomaly_type")\
+        .groupBy("ap1_anomaly_type", "ap1_capcity_anomaly_type", "ap2_anomaly_type", "ap2_capcity_anomaly_type")\
+        .count().show()
+
+    df_ap_coverage_stats.select("ap1_sle_coverage").summary().show()
+
+    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-10-04/hr=14/'
+    df_ap_coverage_stats = spark.read.parquet(s3_bucket)
+    df_ap_coverage_stats.printSchema()
+
+    df_ap_coverage_stats.select("ap1_sle_coverage").summary().show()
+
+def test_detection():
+    from analytics.utils.time_util import current_epoch_seconds
+    from analytics.jobs.utils import *
+    start_time = current_epoch_seconds() - 3600*3   #(3600*24) * (3600*24) - (3600*24)
+    end_time = start_time + 3600
+
+    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='production', debug_mode=True)
+    data = run_category_transform(job, 'all')
+    # data.count()
+    data.printSchema()
+
+    gen = get_event_generator(job, 'all', 'APCoverageEvent')
+    event_rdd = gen.generate_event(data, spark)
+    event_df = event_rdd.toDF()
+    event_df.count()
 
     #
     ap_coverage_stats_df = data
     features_df = gen.extract_feature_df(data)
+    features_df.count()
+
+    cols = ['sle_coverage', "coverage_anomaly_count","avg_nclients", "avg_nclients", "util_ap" ,
+            F.col("avg_nclients") > F.col("site_avg_nclients"), F.col("util_ap") > F.col("site_avg_util")]
+    features_df.select(cols).summary().show()
+
 
     features_df.select((F.col("max_tx_power")>0).alias("power_on"), "radio_missing")\
         .groupBy("power_on", "radio_missing").count().show()
@@ -232,27 +324,27 @@ def test_detection_cross_batch():
 
     from pyspark.sql import functions as F
     env = "production"
-    env = "staging"
+    # env = "staging"
 
     from analytics.utils.time_util import current_epoch_seconds
     from analytics.jobs.utils import *
     start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 1
-    end_time = start_time + 3600 *1
+    end_time = start_time + 3600 *6
 
-    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='staging', debug_mode=True)
+    job = start_debug_job('ap_coverage_detection', start_time, end_time, spark=spark, test_env='production')
     gen = get_event_generator(job, 'all', 'APCoverageEvent')
 
     # s3_gs_bucket='s3://mist-aggregated-stats-{env}/ap-coverage-test/event_data_{env}/dt=2020-12-01/hr=*'.format(env=env)
-    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-01-27/hr=10/'
+    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-10-07/hr=*/'
 
     event_df = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
         .load(s3_gs_bucket)
     event_df.printSchema()
 
-    event_candidates_df = event_df.filter("avg_nclients>2.0 and ap_combined_score>0.5 and sle_coverage < 0.6 and off_neighbors>0")
+    event_candidates_df = event_df #.filter("avg_nclients>2.0 and ap_combined_score>0.5 and sle_coverage < 0.6 and off_neighbors>0")
 
-    candidate_rdd = event_candidates_df.filter('off_neighbors>0') \
+    candidate_rdd = event_candidates_df \
         .rdd \
         .map(lambda r: ('_'.join([r['org_id'], r['site_id'], r['ap_id']]), r.asDict())) \
         .groupByKey().persist()
@@ -262,7 +354,31 @@ def test_detection_cross_batch():
     event_rdd = gen.gen_intra_batch_event(feature_rdd)
     combined_event_rdd = gen.cross_batch_event_correlation(event_rdd)
 
-    # feature_rdd.map(lambda x:  [xx for xx in x[1].get("val_list")]).first()
+    combined_event_rdd.count()
+
+    from functools import partial
+    from analytics.data_access.utils import search_one_related_event
+    other_search_fields = None
+    search_func = partial(search_one_related_event, broadcast_env_config=gen.broadcast_env_config)
+
+    # search for previous batch events
+    event_rdd = event_rdd.map(lambda value: {
+        'cur_event': value['cur_event'],
+        'prev_event': None if gen.config['cross_batch_cutoff_seconds'] == 0 else \
+            search_func(gen.config.get('destination_source_name'),
+                        value['cur_event'],
+                        int(gen.config['cross_batch_cutoff_seconds']),
+                        other_search_fields=other_search_fields)}).persist()
+
+
+    event_rdd = event_rdd.map(lambda value:
+                              gen.cross_batch_event_combine(value['cur_event'],
+                                                             value['prev_event'],
+                                                             stats_accu=gen.stats_accu,
+                                                             broadcast_env_config=gen.broadcast_env_config)) \
+        .persist()
+
+# feature_rdd.map(lambda x:  [xx for xx in x[1].get("val_list")]).first()
 
 def check_coverage_anomaly_from_ap_events():
     from pyspark.sql import functions as F
@@ -473,7 +589,7 @@ def check_coverage_anomaly_from_ap_events():
 
 
 def check_coverage_anomaly_from_ap_events():
-    s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt=2021-01-08/hr=*/'
+    s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt=2021-09-28/hr=20/'
     df_coverage = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1])). \
         filter(lambda x: x['event_type'] == "sle_coverage_anomaly") \
         .map(lambda x: x.get("source")) \
@@ -495,7 +611,8 @@ def check_top_scan():
     pass
 
 def check_sticky_clients():
-    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/sticky_client_stats/dt=2020-12-03/hr=*/*.csv'
+    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/sticky_client_stats/' \
+               'dt=2021-03-29/hr=*/*.csv'
     # s3_bucket ='gs://mist-aggregated-stats-production/aggregated-stats/sticky_client_stats/dt=2020-11-11/hr=*/*.csv'
     df_sticky = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
@@ -505,18 +622,24 @@ def check_sticky_clients():
 
     df_sticky.count()
 
+
+
     return df_sticky
 
 
 def check_coverage_anomaly_stats():
 
-    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/coverage_anomaly_stats/dt=2021-02-28/hr=20/*.csv'
-    df_coverage_anomaly_stats = spark.read.format("csv") \
-        .option("header", "true").option("inferSchema", "true") \
-        .load(s3_bucket)
-
+    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/coverage_anomaly_stats_parquet/dt=2021-10-04/hr=10/*.parquet'
+    df_coverage_anomaly_stats = spark.read.parquet(s3_bucket)
     df_coverage_anomaly_stats.printSchema()
 
+    s3_bucket ='s3://mist-aggregated-stats-production/aggregated-stats/coverage_anomaly_stats/dt=2021-09-30/hr=20/*.csv'
+    df_coverage_anomaly_stats_csv = spark.read.format("csv") \
+        .option("header", "true").option("inferSchema", "true") \
+        .load(s3_bucket)
+    df_coverage_anomaly_stats_csv.printSchema()
+
+    df_coverage_anomaly_stats.printSchema()
     df_coverage_anomaly_stats.count()
 
     from analytics.event_generator.ap_coverage_event import *
@@ -541,9 +664,11 @@ def check_coverage_anomaly_stats():
 def check_coverage_anomaly_stats_test():
     from pyspark.sql import functions as F
 
-    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats_test/dt=2021-03-*/hr=*/'
+    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats_test/dt=2021-09-29/hr=00/'
     df_ap_coverage_stats_test = spark.read.parquet(s3_bucket)
     df_ap_coverage_stats_test.printSchema()
+
+    df_ap_coverage_stats_test.select("sle_coverage").summary().show()
 
     df_ap_coverage_stats_test.select((F.col("max_tx_power")>0).alias("power_on"), "radio_missing")\
         .groupBy("power_on", "radio_missing").count().show()
@@ -573,7 +698,7 @@ def check_coverage_anomaly_stats_test():
 
 
 def check_ap_coverage_stats():
-    s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-02-0[78]/hr=*/"
+    s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats-debug/ap_coverage_stats/dt=2021-04-04/hr=*/"
     df_ap_coverage_stats = spark.read.parquet(s3_bucket)
     df_ap_coverage_stats.printSchema()
 
@@ -602,7 +727,7 @@ def check_coverage_candidates():
     # env = "staging"
 
     # s3_gs_bucket='s3://mist-aggregated-stats-{env}/ap-coverage-test/event_data_{env}/dt=2020-12-01/hr=*'.format(env=env)
-    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-03-19/hr=*/'
+    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_candidates/dt=2021-04-1*/hr=*/'
 
     df_events = spark.read.format("csv") \
         .option("header", "true").option("inferSchema", "true") \
@@ -612,6 +737,9 @@ def check_coverage_candidates():
 
     df_filter = df_events.filter('avg_nclients>2.0 and ap_combined_score>0.5 and sle_coverage < 0.6 and'
                                  '(accomplices > 1 or (accomplices > 0 and off_neighbors > 0))')
+
+    org = 'a8c903ae-e6d0-42a7-b815-fe395dea8017'
+
 
     # df_filter= df_events #.filter('avg_nclients>2.0')
     print("df_filter", df_filter.count())
@@ -670,6 +798,7 @@ def check_coverage_candidates():
     # select_org = "22f1cc2d-ea8a-47ea-b4c0-689a86a0bedf"  # Target CORPORATIONFRI
     select_org = "c1cac1c4-1753-4dde-a065-e17a1c305c2d" # GAP
     select_org = "604411f1-4e45-4bed-9a69-cc37b247fdf9" # US- Sam's
+    select_org = 'a8c903ae-e6d0-42a7-b815-fe395dea8017'  # T-mobile
 
     # select_org = "e390bbc0-c971-4e8e-9cd0-47ca740c7a84"  # Homedepot, GCP
     # df_selected_org= df_filter.filter(F.col("org_id")=="bbb101eb-b62d-4fb1-8c3d-030c6db7e208")
@@ -690,7 +819,7 @@ def check_coverage_candidates():
 
     # df_selected_org = df_filter.filter(F.col("site_id")=="6532c75a-c109-4f82-8270-36e199ca692e")
 
-    cols_2 =  ["site_id", "ap_id", "band", 'sle_coverage', 'avg_nclients',
+    cols_2 =  ["site_id", "ap_id", "band", 'sle_coverage', 'avg_nclients', 'util_ap',
                'ap_coverage_score', "ap_combined_score",
                "strong_neighbors","accomplice_ids",
                "off_neighbor_ids"]
@@ -699,7 +828,7 @@ def check_coverage_candidates():
 
     df_selected_org.filter(F.col("off_neighbors")>0).select(cols_2).show(truncate=False)
 
-    cols = ["site_id", "ap_id", "band", 'sle_coverage', 'avg_nclients',
+    cols = ["site_id", "ap_id", "band", 'sle_coverage', 'avg_nclients', 'util_ap',
             'ap_coverage_score', "ap_combined_score",
             "strong_neighbors","accomplices",
             "off_neighbors"]
@@ -1344,3 +1473,34 @@ def test_sams_6355():
 
 
 
+def test_es():
+
+    import time
+    import datetime
+    import random
+
+    from elasticsearch import Elasticsearch
+    from elasticsearch.helpers import streaming_bulk
+
+
+
+def test(date="2021-09-01", env="production"):
+    for hr in range(1, 24):
+        if hr<10:
+            hour = '0{}'.format(hr)
+        else:
+            hour = '{}'.format(hr)
+        s3_gs_bucket = 's3://mist-aggregated-stats-{}/aggregated-stats/' \
+                       'coverage_anomaly_stats_parquet/dt={}/hr={}/'.format(env, date, hour)
+
+        try:
+             df = spark.read.parquet(s3_gs_bucket)
+             print(s3_gs_bucket)
+             df.printSchema()
+        except:
+             print(date, hr)
+
+# test("2021-08-30")
+# test("2021-08-31")
+test("2021-09-09", "eu")
+# test("2021-09-08", "production")
