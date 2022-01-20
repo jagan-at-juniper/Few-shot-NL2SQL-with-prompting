@@ -8,6 +8,8 @@ from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 import json
 from datetime import datetime,timedelta
+import pygsheets
+
 
 AP_REGEX = re.compile('[^A-Fa-f0-9]')
 
@@ -28,6 +30,47 @@ ENV_CONFIG = {
 
 PAPI_URL = 'http://papi-internal-{}.mist.pvt'.format(ENV)
 RADIO_REINIT_URL = "{}/internal/devices/{}/cmd/radio_reinit"
+
+excel_columns = [
+    'org_id', 'site_id', 'id', 'hostname', 'model', 'recover_time', 'firmware_version',
+    'band', 'max_num_clients', 'max_tx_phy_err', 'interrupt_stats_tx_bcn_succ_max',
+    'interrupt_stats_tx_bcn_succ_min', 'bcn_per_wlan_min', 'bcn_per_wlan', 'num_wlans'
+]
+
+def write_to_sheet(pandas_df):
+    gc = pygsheets.authorize(service_file='./service_account.json')
+
+    ss = gc.open('Walmart_ap_no_client') # make sure Walmart_ap_no_client grant user editor permision
+
+    try:
+        ws = ss.worksheet_by_title('recoverd_ap_list')
+    except pygsheets.exceptions.WorksheetNotFound:
+        ss.add_worksheet('recoverd_ap_list', rows=1000)
+        ws = ss.worksheet_by_title('recoverd_ap_list')
+
+        # init the new sheet
+        header = excel_columns
+        ws.append_table(header, start='A1', end=None, dimension="ROWS", overwrite=False)
+
+    # find current sheet the last row
+    existing_records = ws.get_all_values()
+    counter = 0
+    for record in existing_records:
+        counter += 1
+        if record[0] == "":
+            break
+    non_empty_row = "A{}".format(counter)
+    ws.set_dataframe(pandas_df, non_empty_row, copy_head=False, extend=True)
+
+
+def save_to_google_sheet(df_radio_nf_problematic, date_str, hr_str):
+    new_df = df_radio_nf_problematic.withColumn('recover_time',
+                                                F.when(F.col('model').startswith('AP43'),
+                                                       F.lit('{}_{}'.format(date_str, hr_str))).otherwise(F.lit('')))
+    p_df = new_df.toPandas()
+    new_p_df = p_df[excel_columns]
+    write_to_sheet(new_p_df)
+
 
 def json_value_serializer(v):
     return json.dumps(v).encode('utf-8')
@@ -275,3 +318,7 @@ if __name__ == "__main__":
         print(action_list)
         call_papi(action_list)
         action_list = []
+
+    # save to google sheet
+    save_to_google_sheet(df_radio_nf_problematic, date_day, date_hour)
+    print('saved data into google sheet')
