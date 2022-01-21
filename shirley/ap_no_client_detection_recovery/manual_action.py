@@ -27,6 +27,23 @@ ENV_CONFIG = {
   ]
 }
 
+WHITE_LIST_APS = [
+    '5c-5b-35-0e-93-ae',
+    '5c-5b-35-7e-47-22',
+    'd4-20-b0-40-7a-08',
+    '5c-5b-35-7e-15-0e',
+    'd4-20-b0-45-a7-6c',
+    'd4-dc-09-24-10-50',
+    'd4-20-b0-45-17-43',
+    'd4-20-b0-c2-29-1b',
+    'd4-20-b0-c2-28-b7',
+    'd4-20-b0-45-33-a4',
+    '5c-5b-35-0e-8c-e2',
+    'd4-20-b0-c0-a2-35',
+    '5c-5b-35-ae-4e-f7',
+    '5c-5b-35-d2-f2-51',
+    'd4-20-b0-80-6e-f5',
+]
 
 PAPI_URL = 'http://papi-internal-{}.mist.pvt'.format(ENV)
 RADIO_REINIT_URL = "{}/internal/devices/{}/cmd/radio_reinit"
@@ -65,7 +82,7 @@ def write_to_sheet(pandas_df):
 
 def save_to_google_sheet(df_radio_nf_problematic, date_str, hr_str):
     new_df = df_radio_nf_problematic.withColumn('recover_time',
-                                                F.when(F.col('model').startswith('AP43'),
+                                                F.when( (F.col('model').startswith('AP43') & ~F.col('id').isin(WHITE_LIST_APS)),
                                                        F.lit('{}_{}'.format(date_str, hr_str))).otherwise(F.lit('')))
     p_df = new_df.toPandas()
     new_p_df = p_df[excel_columns]
@@ -243,7 +260,7 @@ def bad_radio_detection(date_day, date_hour):
 def save_df_to_fs(df_radio_nf_problematic, date_day, date_hr):
 
     fs = "gs" if ENV_CONFIG.get('CLOUD_PROVIDER') == "gcp" else "s3"
-    s3_path = "{fs}://mist-data-science-dev/shirley/aps-no-client-all/dt={dt}/hr={hr}" \
+    s3_path = "{fs}://mist-data-science-dev/shirley/aps-no-client-all-2/dt={dt}/hr={hr}" \
         .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hr)
 
     dt_str = '{}_{}'.format(date_day, date_hr)
@@ -297,7 +314,7 @@ if __name__ == "__main__":
     action_list = []
 
     for dd in ap_id_list:
-        if dd['model'].startswith('AP43'):
+        if dd['model'].startswith('AP43') and dd['id'] not in WHITE_LIST_APS:
             dev = 'r0'
             formated_ap = format_ap_id(dd['id'])
             endpoint = RADIO_REINIT_URL.format(PAPI_URL, formated_ap)
