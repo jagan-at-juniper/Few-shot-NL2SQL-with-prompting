@@ -1,0 +1,206 @@
+# vim: ts=4:sw=4:noet ft=sh
+
+CLR_HL="\033[1m"
+CLR_HL_RED="\033[1;31m"
+CLR_HL_YLW="\033[1;33m"
+CLR_SANE="\033[0m"
+
+case $OSTYPE in
+	darwin*)
+		[ ! -z $(which greadlink) ] || {
+			echo "error: greadlink is not installed. install it by \"brew install coreutils\""
+			return 1
+		}
+		READLINK="greadlink"
+		;;
+esac
+SCRIPT_DIR="$(dirname "$(${READLINK:-readlink} -f "${BASH_SOURCE[0]-$0}")")"
+PROJECT_DIR="$(dirname ${SCRIPT_DIR})"
+DL_CACHE_DIR="$PROJECT_DIR/dl"
+
+if [ -f $PROJECT_DIR/.sparkenv ]; then
+	source $PROJECT_DIR/.sparkenv
+fi
+
+export PYTHON_VERSION=${FORCE_PYTHON_VERSION:-3}
+VENV_PATH=${FORCE_VENV_PATH:-$PROJECT_DIR/venv}
+VENV_CONFIGURED_STAMP="$VENV_PATH/.configured_v2019100401"
+
+bootstrap_venv() {
+	[ ! -z $(which pip) ] || { echo "error: pip is not installed"; return 1; }
+	[ ! -z $(which virtualenv) ] || { echo "error: virtualenv is not installed"; return 1; }
+	[ ! -z $(which wget) ] || { echo "error: wget is not installed"; return 1; }
+
+	if wget --help | grep -q -- --no-if-modified-since; then
+		WGET_OPTIONS=(-qN --no-if-modified-since)
+	else
+		WGET_OPTIONS=(-qN)
+	fi
+
+	case $PYTHON_VERSION in
+		2|3)
+			echo "Setting up virtualenv with python$PYTHON_VERSION"
+			virtualenv -p python$PYTHON_VERSION $VENV_PATH || return 3
+			;;
+		*)
+			echo "Unknown PYTHON_VERSION=$PYTHON_VERSION, has to be 2 or 3"
+			return
+			;;
+	esac
+
+	. $VENV_PATH/bin/activate
+
+	[ ! -z "$VIRTUAL_ENV" ] || {
+		echo -e "${CLR_HL_RED}Abort - failed to activate virtualenv.$CLR_SANE"
+		return 2
+	}
+
+	pushd $VIRTUAL_ENV > /dev/null
+
+	echo -n "Installing Spark: downloading... "
+	wget $WGET_OPTIONS -P $DL_CACHE_DIR \
+		https://archive.apache.org/dist/spark/spark-3.1.1/spark-3.1.1-bin-without-hadoop.tgz \
+		|| { popd > /dev/null; deactivate; return 4; }
+	echo -n "unpacking... "
+	tar xf $DL_CACHE_DIR/spark-3.1.1-bin-without-hadoop.tgz
+	echo -n "configuring... "
+	SPARK_HOME=$VIRTUAL_ENV/spark-3.1.1-bin-without-hadoop
+	cat > $SPARK_HOME/conf/spark-defaults.conf <<- EOF
+		spark.debug.maxToStringFields=200
+	EOF
+	mkdir -p $VIRTUAL_ENV/logs
+	cat > $SPARK_HOME/conf/log4j.properties <<- EOF
+		log4j.appender.myConsoleAppender=org.apache.log4j.ConsoleAppender
+		log4j.appender.myConsoleAppender.layout=org.apache.log4j.PatternLayout
+		log4j.appender.myConsoleAppender.layout.ConversionPattern=%d [%t] %-5p %c - %m%n
+
+		log4j.appender.RollingAppender=org.apache.log4j.DailyRollingFileAppender
+		log4j.appender.RollingAppender.File=$VIRTUAL_ENV/logs/spark.log
+		log4j.appender.RollingAppender.DatePattern='.'yyyy-MM-dd
+		log4j.appender.RollingAppender.layout=org.apache.log4j.PatternLayout
+		log4j.appender.RollingAppender.layout.ConversionPattern=[%p] %d %c %M - %m%n
+
+		log4j.appender.RollingAppenderU=org.apache.log4j.DailyRollingFileAppender
+		log4j.appender.RollingAppenderU.File=$VIRTUAL_ENV/logs/sparkU.log
+		log4j.appender.RollingAppenderU.DatePattern='.'yyyy-MM-dd
+		log4j.appender.RollingAppenderU.layout=org.apache.log4j.PatternLayout
+		log4j.appender.RollingAppenderU.layout.ConversionPattern=[%p] %d %c %M - %m%n
+
+
+		# By default, everything goes to console and file
+		log4j.rootLogger=INFO, RollingAppender, myConsoleAppender
+
+		# My custom logging goes to another file
+		log4j.logger.myLogger=INFO, RollingAppenderU
+
+		# The noisier spark logs go to file only
+		log4j.logger.spark.storage=INFO, RollingAppender
+		log4j.additivity.spark.storage=false
+		log4j.logger.spark.scheduler=INFO, RollingAppender
+		log4j.additivity.spark.scheduler=false
+		log4j.logger.spark.CacheTracker=INFO, RollingAppender
+		log4j.additivity.spark.CacheTracker=false
+		log4j.logger.spark.CacheTrackerActor=INFO, RollingAppender
+		log4j.additivity.spark.CacheTrackerActor=false
+		log4j.logger.spark.MapOutputTrackerActor=INFO, RollingAppender
+		log4j.additivity.spark.MapOutputTrackerActor=false
+		log4j.logger.spark.MapOutputTracker=INFO, RollingAppender
+		log4j.additivty.spark.MapOutputTracker=false
+	EOF
+	echo "done."
+
+	echo -n "Installing Hadoop: downloading... "
+	wget $WGET_OPTIONS -P $DL_CACHE_DIR \
+		https://archive.apache.org/dist/hadoop/core/hadoop-2.8.5/hadoop-2.8.5.tar.gz \
+		|| { popd > /dev/null; deactivate; return 4; }
+	echo -n "unpacking... "
+	tar xf $DL_CACHE_DIR/hadoop-2.8.5.tar.gz -C $SPARK_HOME
+	echo -n "configuring... "
+	cat > $SPARK_HOME/hadoop-2.8.5/etc/hadoop/hdfs-site.xml <<- EOF
+		<configuration>
+			<property>
+				<name>fs.s3a.aws.credentials.provider</name>
+				<value>org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider,com.amazonaws.auth.EnvironmentVariableCredentialsProvider,com.amazonaws.auth.InstanceProfileCredentialsProvider</value>
+			</property>
+		</configuration>
+	EOF
+	cat > $SPARK_HOME/hadoop-2.8.5/etc/hadoop/core-site.xml <<- EOF
+		<configuration>
+			<property>
+				<name>fs.s3.impl</name>
+				<value>org.apache.hadoop.fs.s3a.S3AFileSystem</value>
+			</property>
+		</configuration>
+	EOF
+	echo "done."
+
+	# This is required for spark-submit to work
+	echo "Updating spark-env.sh"
+	cat > $SPARK_HOME/conf/spark-env.sh <<- EOF
+		SPARK_DIST_CLASSPATH=$($SPARK_HOME/hadoop-2.8.5/bin/hadoop classpath)
+	EOF
+
+	echo -n "Downloading extra jars... "
+	SPARK_JAR_DIR=$VIRTUAL_ENV/spark-3.1.1-bin-without-hadoop/jars
+	while read jar; do
+		wget $WGET_OPTIONS -P $DL_CACHE_DIR $jar || { popd > /dev/null; deactivate; return 4; }
+		cp $DL_CACHE_DIR/$(basename $jar) $SPARK_JAR_DIR;
+	done <$SCRIPT_DIR/extra_jars.txt
+	echo "done."
+
+	popd > /dev/null
+
+	pip install -r $PROJECT_DIR/requirements.txt
+
+	touch $VENV_CONFIGURED_STAMP
+}
+
+if [ ! -f "$VENV_CONFIGURED_STAMP" ]; then
+	echo -e "${CLR_HL_YLW}No virtualenv for spark found at $VENV_PATH$CLR_SANE"
+	wget --help > /dev/null || { echo "error: wget is not installed"; return 1; }
+	if [ "$NO_INTERACTIVE" = "yes" ]; then
+		echo -e "${CLR_HL}Automatically configurate virtualenv with default options$CLR_SANE"
+		rm -rf $VENV_PATH
+		bootstrap_venv || return 1
+	else
+		printf "Would you like to setup one (Y/n)? "
+		read response
+		case "$response" in
+			""|Y|y)
+				echo -e "${CLR_HL}Python version: ${PYTHON_VERSION}$CLR_SANE"
+
+				if [ -e "$VENV_PATH" ]; then
+					echo -e "${CLR_HL_YLW}$VENV_PATH exists.$CLR_SANE"
+					printf "Would you like to overwrite it (y/N)? "
+					read overwrite
+					case "$overwrite" in
+						Y|y)
+							rm -rf $VENV_PATH
+							;;
+					esac
+				fi
+
+				[ -e "$VENV_PATH" ] || bootstrap_venv || return 1
+				;;
+		esac
+	fi
+fi
+
+if [ -f "$VENV_CONFIGURED_STAMP" ]; then
+	source $VENV_PATH/bin/activate
+else
+	echo -e "${CLR_HL_RED}Abort - virtualenv is not configured.$CLR_SANE"
+	return 2
+fi
+
+[ ! -z "$VIRTUAL_ENV" ] || {
+	echo -e "${CLR_HL_RED}Abort - failed to activate virtualenv.$CLR_SANE"
+	return 2
+}
+
+export SPARK_HOME=$VIRTUAL_ENV/spark-3.1.1-bin-without-hadoop
+export SPARK_DIST_CLASSPATH=$($SPARK_HOME/hadoop-2.8.5/bin/hadoop classpath)
+export PATH=$SPARK_HOME/bin:$SCRIPT_DIR:$PATH
+
+# for macOS
+export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
