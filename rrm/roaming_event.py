@@ -65,3 +65,24 @@ def test_client_event():
     feature_df_org = features_df.filter(F.col("org_id")==select_org)
     feature_df_org.count()
 
+
+def test_roaming():
+    from pyspark.sql import functions as F
+    import time
+
+    from analytics.jobs.utils import *
+
+
+    current_epoch_seconds = int(time.time())
+    start_time = current_epoch_seconds - 7200
+    end_time = start_time + 3600
+
+    # job = start_debug_job('roaming_client_event', start_time, end_time, test_env='staging')  #7.31 1pm PST
+    job = start_debug_job('roaming-client-events', start_time, end_time, test_env='staging')  #7.31 1pm PST
+    data_rdd = run_category_transform(job, 'all').persist()
+    data_rdd.count()
+
+    gen = get_event_generator(job, 'all', 'RoamingClientEvent')
+    event_rdd = gen.generate_event(data_rdd, spark)
+    event_df = event_rdd.toDF()
+    event_df.count()

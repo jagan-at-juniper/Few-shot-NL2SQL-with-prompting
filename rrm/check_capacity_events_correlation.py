@@ -1,116 +1,19 @@
+
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
 import json
-from pyspark.sql import functions as F
+from datetime import datetime,timedelta
+from pyspark.sql.types import *
 
+spark = SparkSession \
+    .builder \
+    .appName("ap-zero-clients") \
+    .getOrCreate()
 
-def test_jobs():
-    from analytics.utils.time_util import current_epoch_seconds
-    from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 0
-    end_time = start_time + 3600
-    # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
-
-    agg_job = stats_aggregator_job(start_time, end_time, "ap-events",  spark, "production")
-    agg_job.execute()
-
-    enrich_job= data_enrichment_job("ap_capacity_enrichment",  start_time , end_time, spark=spark, test_env='production', debug_mode=True)
-    enrich_job.execute()
-
-    job = start_debug_job('ap_capacity_detection', start_time, end_time, spark=spark, test_env='staging', debug_mode=True)
-    data = run_category_transform(job, 'all')
-    gen = get_event_generator(job, 'all', 'APCapacityEvent')
-    event_rdd = gen.generate_event(data, spark)
-    event_df = event_rdd.toDF()
-    print("event_df ", event_df.count())
-
-    # job = entity_suggestion_job(start_time, end_time, spark=spark, test_env='staging', debug_mode=False)
-    # # job = entity_suggestion_job(start_time, end_time, spark=spark, debug_mode=False)
-    # suggestions, alerts = recommend_for_entity(job, 'ap')
-
-def test_aggregator():
-
-    from analytics.utils.time_util import current_epoch_seconds
-    from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 0
-    end_time = start_time + 3600
-    # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
-
-    job = stats_aggregator_job(start_time, end_time, "ap-events",  spark, "production")
-    job.execute()
-
-
-def test_enrichment():
-
-    from analytics.utils.time_util import current_epoch_seconds
-    from analytics.jobs.utils import *
-    start_time = current_epoch_seconds() - 3600 #//(3600*24) * (3600*24) - (3600*24) * 2
-    end_time = start_time + 3600 * 1
-    # job = stats_aggregator_job(start_time, end_time, "client-events",  spark, "production")
-
-    # job= data_enrichment_job("ap_capacity_enrichment",  start_time , end_time, spark=spark, test_env='staging', debug_mode=True)
-
-    job= data_enrichment_job("ap_coverage_enrichment",  start_time , end_time, spark=spark, test_env='staging', debug_mode=True)
-
-    job.execute()
-
-def test_detection():
-
-    from analytics.utils.time_util import current_epoch_seconds
-    from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24) * 3
-    end_time = start_time + 3600
-
-    job = start_debug_job('ap_capacity_detection', start_time, end_time, spark=spark, test_env='production', debug_mode=True)
-
-    data = run_category_transform(job, 'all')
-    # print("data", data.count())
-
-    gen = get_event_generator(job, 'all', 'APCapacityEvent')
-    event_rdd = gen.generate_event(data, spark)
-    event_df2 = event_rdd.toDF()
-    print("event_df ", event_df2.count())
-
-    #
-
-    from analytics.event_generator.ap_capacity_event import *
-    ap_coverage_stats_df = data
-    features_df = gen.extract_feature_df(data)
-
-    features_df.select((F.col("max_tx_power")>0).alias("power_on"), "radio_missing") \
-        .groupBy("power_on", "radio_missing").count().show()
-
-    features_df.select("strong_neighbors", "off_neighbors").summary().show()
-
-    select_org = "22f1cc2d-ea8a-47ea-b4c0-689a86a0bedf"  # Target CORPORATIONFRI
-    feature_df_org = features_df.filter(F.col("org_id")==select_org)
-    feature_df_org.count()
-
-
-def test_recommender():
-
-    from analytics.utils.time_util import current_epoch_seconds
-    from analytics.jobs.utils import *
-    start_time = current_epoch_seconds()//(3600*24) * (3600*24) - (3600*24)
-    end_time = start_time + 3600*12
-
-    job = entity_suggestion_job(start_time, end_time, spark=spark, test_env='staging', debug_mode=False)
-    # job = entity_suggestion_job(start_time, end_time, spark=spark, debug_mode=False)
-    suggestions, alerts = recommend_for_entity(job, 'ap')
-
-    suggestions
-
-def check_capacity_anomaly_from_ap_events():
-    s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt=2021-04-25/hr=*/'
-    df_capacity = spark.sparkContext.sequenceFile(s3_bucket).map(lambda x: json.loads(x[1])). \
-        filter(lambda x: x['event_type'] == "sle_capacity_anomaly") \
-        .map(lambda x: x.get("source")) \
-        .toDF()
-
-    df_capacity.printSchema()
-
-    df_capacity.select("sle_capacity", "sle_capacity_anomaly_score").summary().show()
-    df_capacity.count()
-    return df_capacity
-
+env = "production"
+provider = "aws"
+# provider = "gcp"
+fs = "gs" if provider == "gcp" else "s3"
 
 def check_capacity_anomaly_stats():
 
@@ -148,85 +51,74 @@ def check_capacity_anomaly_stats():
     return df_capacity_anomaly_stats
 
 
-def check_capacity_anomaly_stats_test():
-    from pyspark.sql import functions as F
+def get_es_events():
+    """
+    curl -XGET "http://es7-access-000-production.mist.pvt:9200/entity_suggestion_202202*/_search" -H 'Content-Type: application/json' -d'{ "query": {   "query_string": {     "query": "symptom:insufficient_capacity AND status:open"   } }, "size": 10,  "sort": [   {     "modification_time": {       "order": "desc"     }   } ],  "aggs": {    "agg1": {      "terms": {"field": "org_id" }    },    "agg2": {    "terms": {  "field": "status"  }    },    "agg3": {    "terms": {  "field": "unique_key"  }    }  }}'
+    :return:
+    """
+    from datetime import datetime
+    from elasticsearch import Elasticsearch
+    from elasticsearch_dsl import Search
 
-    s3_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/ap_capacity_stats_test/dt=2021-04-25/hr=*/'
-    df_ap_capacity_stats_test = spark.read.parquet(s3_bucket)
-    df_ap_capacity_stats_test.printSchema()
+    # env = "production"
+    es_host = 'es-proxy-{env}.mist.pvt'.format(env=env)
+    es_host = "es7-access-000-{env}.mist.pvt".format(env=env)
+    es = Elasticsearch([{'host': es_host, 'port': 9200}])
 
-    df_ap_capacity_stats_test.select((F.col("max_tx_power")>0).alias("power_on"), "radio_missing") \
-        .groupBy("power_on", "radio_missing").count().show()
+    es_index = "entity_suggestion_202202*"
 
-    df_ap_capacity_stats_test.filter(F.col("org_id").isNull()).select("org_id", "site_id").groupBy("org_id", "site_id").count().show()
+    query=  {
+        "query_string": {
+            "query": "symptom:insufficient_capacity AND status:open"
+        }
+    }
+    resp = Search(index=es_index).using(client=es).query(query).execute()
 
-    df_ap_capacity_stats_test.count()
-    df_ap_capacity_stats_test.select("avg_nclients", "sle_capacity", "util_ap", "error_rate", "max_power").summary().show()
-
-    # test ap_capacity_score
-    from analytics.event_generator.ap_capacity_event import *
-    features_df = df_ap_capacity_stats_test
-    features_df = features_df.withColumn("ap1_capacity_score",
-                                         ap_capacity_score(F.col("avg_nclients"),
-                                                           F.col("sle_capacity"),
-                                                           F.col("sle_capacity_anomaly_score"),
-                                                           F.col("capacity_anomaly_count")
-                                                           )
-                                         )
-
-    features_df.select("avg_nclients", "sle_capacity", "sle_capacity_anomaly_score",
-                       "capacity_anomaly_count", "sticky_uniq_client_count",
-                       "ap1_capacity_score").summary().show()
-
-    return df_ap_capacity_stats_test
+    es_count = resp.hits.total if resp and resp.hits else 0
+    print("es_count", es_count)
+    # print("Got %d Hits:" % resp['hits']['total'])
+    for hit in resp['hits']['hits']:
+        print(hit["_source"])
 
 
+def get_event():
+    """
 
-def check_coverage_merge():
-    from pyspark.sql import functions as F
+    :return:
+    """
     s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/'
-    s3_gs_bucket += 'ap_capacity_stats/dt=2021-04-25/hr=00/'
+    s3_gs_bucket += 'ap_capacity_candidates/dt=2022-02-*/hr=*/'
 
-    # s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-03-2[6]/hr=*/"
-    df_ap_capacity_stats_1 = spark.read.parquet(s3_gs_bucket)
-    df_ap_capacity_stats_1.printSchema()
+    df_events = spark.read.format("csv") \
+        .option("header", "true").option("inferSchema", "true") \
+        .load(s3_gs_bucket)
 
-    cols_1 = ["ap1_sle_capacity", "ap1_sle_capacity_anomaly_score",
-              "ap1_avg_nclients", "ap1_error_rate",
-              "ap1_capacity_anomaly_count", "ap1_util_ap"]
-    df_ap_capacity_stats_1.select(cols_1).summary().show()
+    df_events=df_events.withColumn("date_hour", F.from_unixtime(F.col('timestamp')/1000, format='yyyy-MM-dd HH'))
 
-    s3_gs_bucket = 's3://mist-aggregated-stats-production/aggregated-stats/'
-    s3_gs_bucket += 'ap_coverage_stats/dt=2021-04-25/hr=00/'
+    df_events.printSchema()
+    print("df_events", df_events.count())
 
-    # s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/ap_coverage_stats/dt=2021-03-2[6]/hr=*/"
-    df_ap_capacity_stats_2 = spark.read.parquet(s3_gs_bucket)
-    df_ap_capacity_stats_2.printSchema()
+    candidate_saver_filter = "ap_combined_score>0.5 and sle_capacity < 0.6 and capacity_anomaly_count > 2 and " \
+                             "(avg_nclients > site_avg_nclients or avg_nclients > 5.0) and " \
+                             "(util_ap > site_avg_util or util_ap > 10.0)"
 
-    cols_2 = ["ap1_sle_capacity", "ap1_sle_capacity_anomaly_score",
-              "ap1_capacity_avg_nclients", "ap1_capacity_error_rate",
-              "ap1_capacity_anomaly_count", "ap1_capacity_util_ap"]
+    candidate_emit_filter = "(accomplices > 0 or off_neighbors > 0 or ap_combined_score > 0.8)"
+    df_events.filter(candidate_emit_filter).select("band").groupBy("band").count().show()
+    cols = ["avg_nclients","util_ap", "capacity_anomaly_count", # "sticky_uniq_client_count",
+             'neighbors', "accomplices",
+             "off_neighbors",
+             "strong_neighbors","ap_capacity_score", "ap_combined_score", "neighbors_score"]
 
-    df_ap_capacity_stats_2.select(cols_2).summary().show()
+    df_events.select(cols).summary().show()
 
-
-
-def test_sle_data():
-    import json
-    from pyspark.sql import functions as F
-    s3_gs_bucket = 's3://mist-secorapp-production/cv-sle-cap-multipartition/cv-sle-cap-multipartition-production/' \
-                   'dt=2021-04-25/*'
-
-    df_capacity = spark.read.format('orc').load(s3_gs_bucket)
-    # df_capacity = spark.read.parquet(s3_gs_bucket)
-    df_capacity.printSchema()
-
-
-
+    impacted_aps = set(df_events.select('ap_id').toPandas()['ap_id'])
+    impacted_aps = [ x.replace("-", "") for x in impacted_aps ]
+    print(impacted_aps)
+    return impacted_aps
 
 def check_capacity_anomaly_from_ap_events(last_days=3):
     files = []
-    for i in range(7):
+    for i in range(last_days):
         date_day= (datetime.now()  - timedelta(days=i)).strftime("%Y-%m-%d")
 
         s3_bucket= 's3://mist-secorapp-production/ap-events/ap-events-production/dt={}/hr=*/*.seq'.format(date_day)
@@ -247,24 +139,38 @@ def check_impact_aps():
                     'ac23160dbbeb', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7',
                     'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7',
                     'd4dc092b8263', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc09e4d3d7', 'd4dc092b8263']
+    impacted_aps = ['5c5b35ae3e4e', '5c5b35cf546e', 'd420b04281b8', 'd420b0c0f677']
+    impacted_aps = get_event()
 
-
+    # df_capacity = check_capacity_anomaly_from_ap_events(7)
     df_capacity = check_capacity_anomaly_from_ap_events(7)
     df_capacity.printSchema()
 
-    from pyspark.sql.types import *
     def ap_id_reformat(ap):
         return ap.replace("-", "")
     ap_id_reformat_f = F.udf(ap_id_reformat, StringType())
     df_capacity = df_capacity.withColumn("ap", ap_id_reformat_f(F.col("ap")))
 
-    capacity_cols = ["timestamp", "ap", "band", "channel", "impacted_wlans", "avg_nclients", "error_rate",
-                     "interference_type", "sle_capacity", "util_ap", "util_all_mean"]
-
-    df_capacity.select(capacity_cols).show()
+    # df_capacity.select(capacity_cols).show()
 
     df_capacity_aps = df_capacity.filter(df_capacity.ap.isin(impacted_aps))
-    df_capacity_aps.count()
+    n_row = df_capacity_aps.count()
+    print("df_capacity_aps = ", n_row)
 
-    # df_capacity.show(2)
-    df_capacity_aps.select(capacity_cols).show()
+    s3_path = "{fs}://mist-data-science-dev/wenfeng/ap-capacity-aps/".format(fs=fs)
+    print(s3_path)
+    df_capacity_aps.write.save(s3_path,  format='parquet',  mode='overwrite',   header=True)
+    # df_capacity_aps_1 = spark.read.parquet(s3_path)
+    # df_capacity_aps_1.show(2)
+
+    df_capacity_aps = df_capacity_aps.withColumn("date_hour", F.from_unixtime(F.col('timestamp'), format='yyyy-MM-dd HH'))
+
+
+    capacity_cols = ["date_hour", "timestamp", "ap", "band", "channel", "impacted_wlans", "avg_nclients", "error_rate",
+                     "interference_type", "anomaly_type", "sle_capacity", "util_ap", "util_all_mean"]
+
+    df_capacity_aps.orderBy("ap", "band", "timestamp").select(capacity_cols).show(n_row)
+    return df_capacity_aps
+
+
+df_capacity_aps = check_impact_aps()

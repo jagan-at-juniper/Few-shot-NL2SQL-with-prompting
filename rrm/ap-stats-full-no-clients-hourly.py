@@ -17,6 +17,7 @@ fs = "gs" if provider == "gcp" else "s3"
 detect_time = datetime.now() - timedelta(hours=1)
 date_day = detect_time.strftime("%Y-%m-%d")
 date_hour = detect_time.strftime("%H")
+date_hour = "*"
 
 s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=env)
 s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
@@ -35,14 +36,19 @@ df_radio = df.filter("uptime>86400") \
     .withColumn("num_wlans", F.size("radio.wlans")) \
     .withColumn("bcn_per_wlan", F.col("radio.interrupt_stats_tx_bcn_succ")/F.col("num_wlans"))
 
+
+df_radio.filter("bcn_per_wlan < 500 and radio.tx_phy_err>0")
 # df_radio.printSchema()
 
 df_radio_nf_g = df_radio \
     .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "radio.*", "num_wlans", "bcn_per_wlan") \
     .groupBy("org_id", "site_id", "id","hostname", "firmware_version", "model", "band") \
     .agg(
+    F.collect_set("channels").alias("channels"),
     F.max("num_clients").alias("max_num_clients"),
-    F.max('tx_phy_err').alias("max_tx_phy_err"),
+    F.max('tx_phy_err').alias("tx_phy_err_max"),
+    F.min('tx_phy_err').alias("tx_phy_err_min"),
+    F.avg('tx_phy_err').alias("tx_phy_err_avg"),
     F.max("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_max"),
     F.min("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_min"),
     F.max("bcn_per_wlan").alias("bcn_per_wlan_max"),
@@ -52,6 +58,13 @@ df_radio_nf_g = df_radio \
     F.max("num_wlans").alias("num_wlans")
 )
 
+# s3_path = "{fs}://mist-data-science-dev/wenfeng/aps-radios/dt={dt}/hr={hr}".format(fs=fs, dt=date_day, hr=date_hour)
+# df_radio_nf_g.write.save(s3_path, format='parquet', mode='overwrite', header=True)
+
+# df_radio_nf_g.filter("bcn_per_wlan < 500 and max_tx_phy_err>0")
+df_t = df_radio_nf_g.filter("bcn_per_wlan < 500 and tx_phy_err_max>0")
+df_t.select("max_num_clients", "bcn_per_wlan", "tx_phy_err_max", "interrupt_stats_tx_bcn_succ_max").summary().show()
+
 # s3_path = "{fs}://mist-data-science-dev/wenfeng/test/dt={dt}/hr={hr}" \
 #     .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
 
@@ -59,7 +72,7 @@ df_radio_nf_g = df_radio \
 #                                                format='csv',
 #                                                mode='overwrite',
 
-Filter_query_1 = "band==5 and max_num_clients <1 and max_tx_phy_err > 0 and num_wlans>0 and bcn_per_wlan < 500"
+Filter_query_1 = "band==5 and max_num_clients <1 and tx_phy_err_max > 0 and num_wlans>0 and bcn_per_wlan < 500"
 df_radio_nf_problematic_2 = df_radio_nf_g.filter(Filter_query_1)
 
 
@@ -120,3 +133,145 @@ check_org_and_model()
 #
 # df_radio_nf_problematic_2.select("ap_series").groupBy("ap_series").count().show()
 
+
+def test():
+    from pyspark.sql import functions as F
+    import time
+    # sc.addPyFile("gs://mist-data-science-dev/wenfeng/spark_jobs_test.zip")
+    from analytics.jobs.utils import *
+    from analytics.event_generator.beacon_partial_stuck_event import *
+
+    current_epoch_seconds = int(time.time()/3600)*3600
+    start_time = current_epoch_seconds - 7200
+    end_time = start_time + 3600
+    # start_time, end_time = 1642856400, 1642860000
+    #job = start_debug_job( 'ap-stats-analytics', 1596099000, 1596099600, test_env='staging') #7.30 2am PST
+    job = start_debug_job( 'ap-stats-analytics', start_time, end_time, test_env='production') #7.31 1pm PST
+    data_rdd = run_category_transform(job, 'enabled_radio').persist()
+    data_rdd.count()
+
+    gen = get_event_generator(job, 'enabled_radio', 'BeaconPartialStuckEvent')
+    event_rdd = gen.generate_event(data_rdd, spark)
+    event_rdd.count()
+
+    #
+    # gen = get_event_generator(job, 'enabled_radio', 'BeaconPartialStuckEvent')
+    # data_rdd = data_rdd \
+    #     .filter(lambda radio_stat_tuple: not any([x['radio']['radio_missing'] for x in radio_stat_tuple[1]])) \
+    #     .mapValues(lambda stats_list: [rec for rec in stats_list if filter_inactive_radio(rec)]) \
+    #     .filter(lambda key_tuple: len(key_tuple[0]) > 0) \
+    #     .filter(lambda key_tuple: len(set([x['radio'].get('channel') for x in key_tuple[1]])) == 1 and
+    #                               check_firmware_version(list(set([x['firmware_version'] for x in key_tuple[1]]))))
+    #
+    # counter_add(gen.stats_accu, 'BeaconPartialStuckEvent.total_radios', data_rdd.count())
+    #
+    # feature_rdd = gen.compose_entity_features(data_rdd)
+    #
+    # gen.logger.info("there are %d %s left for %s %s after filtering channel switch" % (
+    #     feature_rdd.count(), gen.config['entity_type'], gen.config['event_name'], gen.config['event_type']))
+    #
+    # # filter out candidate radios for cross-batch aggregation
+    # feature_rdd = feature_rdd.filter(lambda kv_tuple:
+    #                                  kv_tuple[1]['features']['sum_wlan'] > 0 and
+    #                                  kv_tuple[1]['features']['band'] == '5' and
+    #                                  kv_tuple[1]['features']['tot_cnt'] >= MIN_BATCH_SIZE and
+    #                                  kv_tuple[1]['features']['sum_client'] <= MAX_CLIENT and
+    #                                  kv_tuple[1]['features']['sum_txphyerr'] >= MIN_PHY_ERR and
+    #                                  kv_tuple[1]['features']['avg_bcn_per_wlan'] < MAX_BCN_PER_WLAN)
+    #
+    # # feature_rdd.map(lambda x: x[0]).collect()
+    # # feature_rdd.map(lambda x: x[0]).collect()
+    # ap1 = ['5c5b350e8788',   # phy_err =2    but cut 6
+    #        '5c5b350e8f08'
+    #        ]
+    # feature_rdd.filter(lambda x: x in ap1)
+    #
+    # gen.logger.info("there are %d %s left for %s %s after filtering features" % (
+    #     feature_rdd.count(), gen.config['entity_type'], gen.config['event_name'], gen.config['event_type']))
+    #
+    # event_rdd = gen.gen_intra_batch_event(feature_rdd)
+    #
+    # event_rdd = gen.cross_batch_event_correlation(event_rdd)
+    #
+    # # d = event_rdd.map(lambda x: x[0]).collect()
+    ap_1 = event_rdd.map(lambda x: x.get("ap_id")).collect()
+    #
+    # #============
+
+    # df= spark.read.parquet(s3_bucket)
+    df = spark.read.parquet(*job.input_files)
+    # df = data_rdd.toDF()
+    df.printSchema()
+
+    # Radio
+    df_radio = df.filter("uptime>86400") \
+        .select("org_id", "site_id", "id", "hostname", "firmware_version", "model",
+                F.col("when").alias("timestamp"),
+                F.explode("radios").alias("radio")
+                ) \
+        .filter("radio.dev != 'r2' and radio.bandwidth>0 and not radio.radio_missing and radio.band==5") \
+        .withColumn("num_wlans", F.size("radio.wlans")) \
+        .withColumn("bcn_per_wlan", F.col("radio.interrupt_stats_tx_bcn_succ")/F.col("num_wlans"))
+
+
+    df_radio.filter("bcn_per_wlan < 500 and radio.tx_phy_err>0")
+    # df_radio.printSchema()
+
+    df_radio_nf_g = df_radio \
+        .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "radio.*", "num_wlans", "bcn_per_wlan") \
+        .groupBy("org_id", "site_id", "id","hostname", "firmware_version", "model", "band") \
+        .agg(
+        F.max("num_clients").alias("max_num_clients"),
+        F.max('tx_phy_err').alias("tx_phy_err_max"),
+        F.max("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_max"),
+        F.min("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_min"),
+        F.max("bcn_per_wlan").alias("bcn_per_wlan_max"),
+        F.stddev("bcn_per_wlan").alias("bcn_per_wlan_std"),
+        F.min("bcn_per_wlan").alias("bcn_per_wlan_min"),
+        F.avg("bcn_per_wlan").alias("bcn_per_wlan"),
+        F.max("num_wlans").alias("num_wlans")
+    )
+
+    # df_radio_nf_g.filter("bcn_per_wlan < 500 and tx_phy_err_max>0")
+    df_t = df_radio_nf_g.filter("bcn_per_wlan < 500 and tx_phy_err_max>0")
+
+    df_t.select("max_num_clients", "bcn_per_wlan", "tx_phy_err_max", "interrupt_stats_tx_bcn_succ_max").summary().show()
+
+    # s3_path = "{fs}://mist-data-science-dev/wenfeng/test/dt={dt}/hr={hr}" \
+    #     .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
+
+    # df_radio_nf_g.coalesce(1).write.save(s3_path,
+    #                                                format='csv',
+    #                                                mode='overwrite',
+
+    Filter_query_1 = "band==5 and max_num_clients <1 and tx_phy_err_max > 0 and num_wlans>0 and bcn_per_wlan < 500"
+    df_radio_nf_problematic_2 = df_radio_nf_g.filter(Filter_query_1)
+    df_radio_nf_problematic_2.select("org_id", "site_id", "id", "hostname", "model").show(truncate=False)
+
+    ap_2 = list(df_radio_nf_problematic_2.select("id").toPandas()['id'])
+    ap_2 = [ x.replace("-", "") for x in ap_2]
+
+    print([x for x in ap_1 if x in ap_2])
+    print([x for x in ap_1 if x not in ap_2])
+    print([x for x in ap_2 if x not in ap_1])
+    #===========
+    # data from
+    date_day,date_hour = '2022-01-22', '13'
+    fs_test = "gs://mist-data-science-dev/shirley/aps-no-client-all-2/dt={dt}/hr={hr}".format(dt=date_day, hr=date_hour)
+
+    df = spark.read.option("header",True).csv(fs_test)
+    df.select("org_id", "site_id", "id", "hostname", "model", "recovery_time").show(truncate=False)
+
+
+def read_data():
+
+    from datetime import datetime,timedelta
+    # dt_now = datetime.now() - timedelta(hours=3)
+    # dt_now = datetime.fromtimestamp(start_time)
+    # date_day = dt_now.strftime("%Y-%m-%d")
+    # date_hour = dt_now.strftime("%H")
+    date_day,date_hour = '2022-01-30', '*'
+    fs_test = "gs://mist-data-science-dev/shirley/aps-no-client-all-2/dt={dt}/hr={hr}".format(dt=date_day, hr=date_hour)
+
+    df = spark.read.option("header",True).csv(fs_test)
+    df.select("org_id", "site_id", "id", "hostname", "model", "recovery_time").show(truncate=False)

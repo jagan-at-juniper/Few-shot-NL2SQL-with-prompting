@@ -43,7 +43,7 @@ def convert_bytes_to_uuid(uuid_bytearray):
 
 
 from pyspark.sql.types import *
-bytes_to_uuid = F.udf(convert_bytes_to_uuid, FloatType())
+bytes_to_uuid = F.udf(convert_bytes_to_uuid, StringType())
 bytes_to_mac = F.udf(convert_bytes_to_mac, StringType())
 
 
@@ -60,4 +60,9 @@ print(s3_bucket)
 
 df= spark.read.parquet(s3_bucket)
 df.printSchema()
+
+def check_scan():
+
+    df_scan = df.select("org_id", "site_id", "id", "firmware_version" , "model", F.explode("scans").alias("scans"))
+    df_scan_1 = df_scan.select("org_id", "site_id", "id", "firmware_version", "model", F.col("scans.*"))
 
