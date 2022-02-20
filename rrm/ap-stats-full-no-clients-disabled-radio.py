@@ -290,3 +290,48 @@ df_walmart.show()
 #                                     format='csv',
 #                                     mode='overwrite',
 #                                     header=True)
+
+now = datetime.now()  - timedelta(hours=3)
+date_day = now.strftime("%Y-%m-%d")
+date_hour = now.strftime("%H")
+date_hour = "*"
+def get_df_disabled_radio():
+    s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=env)
+    s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
+    print(s3_bucket)
+
+    df= spark.read.parquet(s3_bucket)
+    # df.printSchema()
+
+    df_radio = df.filter("uptime>86400") \
+        .select("org_id", "site_id", "id", "hostname", "firmware_version", "model",
+                F.col("when").alias("timestamp"),
+                F.explode("radios").alias("radio")
+                ) \
+        .withColumn("num_wlans", F.size("radio.wlans")) \
+        .filter("radio.dev != 'r2' and (radio.bandwidth==0 or radio.radio_missing or num_wlans < 1) ") \
+        .withColumn("bcn_per_wlan", F.col("radio.interrupt_stats_tx_bcn_succ")/F.col("num_wlans"))
+    return df_radio
+
+df_disabled_radio = get_df_disabled_radio()
+
+df_disabled_radio_org = df_disabled_radio \
+    .select("org_id", "model","id", "radio.band", "radio.dev", "radio.bandwidth", "radio.radio_missing", "num_wlans" ) \
+    .groupBy("org_id", "model", "band", "dev", "bandwidth", "radio_missing", "num_wlans" ) \
+    .agg(F.countDistinct("id").alias("disabled_radios")) \
+    .orderBy(F.col("disabled_radios").desc())
+
+df_disabled_radio_org.orderBy("band", "model").orderBy("disabled_radios").show(truncate=False)
+
+
+df_1 = df_disabled_radio_org.filter(F.col("model").rlike("AP41|AP61"))
+df_1.orderBy(F.col("disabled_radios").desc(), "band", "model").show(truncate=False)
+
+
+df_2 = df_disabled_radio_org.filter(F.col("org_id")!="")\
+    .filter(F.col("radio_missIng"))\
+    .filter(F.col("model").rlike("AP41|AP61"))
+
+df_2.select("band").groupBy("band").count().show()
+
+df_2.filter(F.col("band")==5).orderBy(F.col("disabled_radios").desc(), "org_id", "model").show(truncate=False)

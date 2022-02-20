@@ -45,19 +45,27 @@ df_radio_nf_g = df_radio \
     F.max('tx_phy_err').alias("max_tx_phy_err"),
     F.max("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_max"),
     F.min("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_min"),
+    F.max("bcn_per_wlan").alias("bcn_per_wlan_max"),
+    F.stddev("bcn_per_wlan").alias("bcn_per_wlan_std"),
     F.min("bcn_per_wlan").alias("bcn_per_wlan_min"),
     F.avg("bcn_per_wlan").alias("bcn_per_wlan"),
     F.max("num_wlans").alias("num_wlans")
 )
 
+# s3_path = "{fs}://mist-data-science-dev/wenfeng/test/dt={dt}/hr={hr}" \
+#     .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
 
-Filter_query_1 = "band==5 and max_num_clients <1 and max_tx_phy_err>=0 and num_wlans>0 and bcn_per_wlan < 500"
-df_radio_nf_problematic = df_radio_nf_g.filter(Filter_query_1)
+# df_radio_nf_g.coalesce(1).write.save(s3_path,
+#                                                format='csv',
+#                                                mode='overwrite',
+
+Filter_query_1 = "band==5 and max_num_clients <1 and max_tx_phy_err > 0 and num_wlans>0 and bcn_per_wlan < 500"
+df_radio_nf_problematic_2 = df_radio_nf_g.filter(Filter_query_1)
 
 
-def save_df_to_fs(df_radio_nf_problematic, date_day, date_hr):
+def save_df_to_fs(df_radio_nf_problematic, date_day, date_hour):
     s3_path = "{fs}://mist-data-science-dev/wenfeng/aps-no-client-all/dt={dt}/hr={hr}" \
-        .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hr)
+        .format(fs=fs, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
 
     df_radio_nf_problematic.coalesce(1).write.save(s3_path,
                                                    format='csv',
