@@ -208,7 +208,7 @@ def call_papi(action_list):
             print('failed: {}'.format(a))
 
 
-def bad_radio_detection(date_day, date_hour):
+def bad_radio_detection(date_day, date_hour, last_hours=3):
 
     spark = SparkSession \
         .builder \
@@ -220,12 +220,21 @@ def bad_radio_detection(date_day, date_hour):
     # detect_time = datetime.now() - timedelta(hours=1)
     # date_day = detect_time.strftime("%Y-%m-%d")
     # date_hour = detect_time.strftime("%H")
-
     s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=ENV)
-    s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
-    print(s3_bucket)
+    s3_bucket_files = []
+    for i in range(last_hours+1, 1, -1):
+        detect_time = datetime.now() - timedelta(hours=i)
+        date_day = detect_time.strftime("%Y-%m-%d")
+        date_hour= detect_time.strftime("%H")
 
-    df= spark.read.parquet(s3_bucket)
+        tmp_files = s3_bucket +"dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
+        s3_bucket_files.append(tmp_files)
+    print(s3_bucket_files)
+    # s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=ENV)
+    # s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
+    # print(s3_bucket)
+
+    df = spark.read.parquet(*s3_bucket_files)
     df.printSchema()
 
     # Radio
