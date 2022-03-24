@@ -1,0 +1,81 @@
+version: 0.1
+url_prefix: https://downdetectorapi.com/v2
+fequency: 1800
+
+kafka_topic: downdetctor_stats
+
+RATELIMIT:
+  day: 7200
+  hour: 300
+  minute: 60
+
+workflow:
+  service_provider:
+    get_token:
+      request:
+        method: POST
+        url: /tokens
+        headers: Not Clear
+        params:
+          grant_type: client_credentials
+      response:
+        description: Parser for auth of downdetector
+        name: downdetector.authentication.Authentication
+      redis:
+        key: downdetector_auth_token
+        ttl: 3600
+
+    reports:
+      request:
+        method: GET
+        url: /slugs/{slug}/reports
+        headers:
+          authorization: Bearer {auth_token}
+        params:
+          startdate:
+            value: "{current_timestamp}"
+            format: YYYY-MM-DDThh:mm:ss+hh:mm
+          enddate:
+            value: "{end_timestamp}"
+            format: YYYY-MM-DDThh:mm:ss+hh:mm
+          interval: "{frequency}"
+      response:
+        description: Parser for reports of downdetector
+        name: downdetector.reports.ParseReports
+
+      indicators:
+        request:
+          method: GET
+          url: /slugs/{slug}/indicators
+          headers:
+            authorization: Bearer {auth_token}
+          params:
+            startdate:
+              value: "{current_timestamp}"
+              format: YYYY-MM-DDThh:mm:ss+hh:mm
+            enddate:
+              value: "{end_timestamp}"
+              format: YYYY-MM-DDThh:mm:ss+hh:mm
+        response:
+          description: Parser for Indicators of downdetector
+          name: downdetector.reports.ParseIndicators
+
+      networks:
+        request:
+          method: GET
+          url: /slugs/{slug}/networks
+          headers:
+            authorization: Bearer {auth_token}
+          params:
+            startdate:
+              value: "{current_timestamp}"
+              format: YYYY-MM-DDThh:mm:ss+hh:mm
+            enddate:
+              value: "{end_timestamp}"
+              format: YYYY-MM-DDThh:mm:ss+hh:mm
+            amount: 512
+        response:
+          description: Parser for Providers of downdetector
+          name: downdetector.reports.ParseNetworks
+
+
