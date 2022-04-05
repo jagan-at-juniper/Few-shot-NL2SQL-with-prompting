@@ -149,6 +149,7 @@ def test_circle_device_graph():
 
 
 def test_bidirection_loop(dt="2021-03-18", hr="06"):
+
     import pyspark.sql.functions as F
 
     s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/graph/snapshots/"
@@ -174,7 +175,7 @@ def test_bidirection_loop(dt="2021-03-18", hr="06"):
 
 def test_bidirection():
     import pyspark.sql.functions as F
-    dt="2021-03-18"; hr="06"
+    dt="2021-03-25"; hr="10"
 
     s3_bucket = "s3://mist-aggregated-stats-production/aggregated-stats/graph/snapshots/"
     s3_device_nodes_bucket ="{}device-nodes/dt={}/hr={}/".format(s3_bucket, dt, hr)
@@ -225,7 +226,7 @@ def test_bidirection():
 
     device_bidirectional_df.select("orgId", "siteId").groupBy("orgId", "siteId").count().count()
 
-    device_bidirectional_df.select("orgId", "siteId", "source", "sourcePort",  "target", "targetPort")
+    # device_bidirectional_df.select("orgId", "siteId", "source", "sourcePort",  "target", "targetPort")
 
     macs = list(device_bidirectional_df.select("source", "target").toPandas()['source'])
     macs1 = list(device_bidirectional_df.select("source", "target").toPandas()['target'])
