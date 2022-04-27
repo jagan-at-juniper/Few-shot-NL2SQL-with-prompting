@@ -1,6 +1,10 @@
 
-cp_file=
-aws-okta exec mist-data-science --  aws s3 ls s3://mist-production-jupyterhub-notebooks/jupyter/wenfeng/EMR-notebooks/test_es_suggestions-check.ipynb .
+FileName=$1
+currDir=$(pwd)
+echo "copy file aws to local: "$FileName
+aws-okta exec mist-data-science --  aws s3 cp s3://mist-production-jupyterhub-notebooks/jupyter/wenfeng/EMR-notebooks/$FileName $currDir
 
-gsutil cp test_es_suggestions-check.ipynb  gs://mist-data-science-dev/wenfeng/spark_jobs_test.zip
+echo "copy local file  to gcp : "$FileName
+
+gsutil cp $currDir/$FileName  gs://mist-production-jupyterhub-notebooks/jupyter/wenfeng/EMR-notebooks/
 
