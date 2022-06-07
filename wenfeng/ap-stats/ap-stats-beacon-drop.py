@@ -1,7 +1,7 @@
 from pyspark.sql.functions import udf, size, avg, count, col,sum, explode
-
-import matplotlib.pyplot as plt
-%matplotlib inline
+#
+# import matplotlib.pyplot as plt
+# %matplotlib inline
 
 import pyspark.sql.functions as F
 
