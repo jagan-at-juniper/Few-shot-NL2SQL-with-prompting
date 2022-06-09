@@ -21,9 +21,9 @@ ENV_CONFIG = {
     'CLOUD_PROVIDER': 'aws',
     'kafka.port': '6667',
     "kafka.hosts": [
-        "kafka-000-{}.mist.pvt".format(ENV),
-        "kafka-001-{}.mist.pvt".format(ENV),
-        "kafka-002-{}.mist.pvt".format(ENV)
+        "kafka2-000-{}.mist.pvt".format(ENV),
+        "kafka2-001-{}.mist.pvt".format(ENV),
+        "kafka2-002-{}.mist.pvt".format(ENV)
   ]
 }
 
@@ -52,12 +52,14 @@ def write_to_sheet(pandas_df):
         ws.append_table(header, start='A1', end=None, dimension="ROWS", overwrite=False)
 
     # find current sheet the last row
-    existing_records = ws.get_all_values()
-    counter = 0
-    for record in existing_records:
-        counter += 1
-        if record[0] == "":
-            break
+    # existing_records = ws.get_all_values()
+    # counter = 0
+    # for record in existing_records:
+    #     counter += 1
+    #     if record[0] == "":
+    #         break
+    # non_empty_row = "A{}".format(counter)
+    counter = ws.rows + 1
     non_empty_row = "A{}".format(counter)
     ws.set_dataframe(pandas_df, non_empty_row, copy_head=False, extend=True)
 
@@ -65,7 +67,8 @@ def write_to_sheet(pandas_df):
 def save_to_google_sheet(df_radio_nf_problematic, date_str, hr_str):
     new_df = df_radio_nf_problematic.withColumn('recover_time',
                                                 F.when( (F.col('model').startswith('AP43') & ~F.col('id').isin(WHITE_LIST_APS)),
-                                                       F.lit('{}_{}'.format(date_str, hr_str))).otherwise(F.lit('')))
+                                                        F.lit('{}_{}'.format(date_str, hr_str))).otherwise(F.lit(''))) \
+        .withColumn('detection_time', F.lit('{}_{}'.format(date_str, hr_str)))
     p_df = new_df.toPandas()
     new_p_df = p_df[excel_columns]
     write_to_sheet(new_p_df)
@@ -79,7 +82,7 @@ def post_to_papi(url, data):
 
     headers = {
         "Content-Type": "application/json; charset=utf-8",
-        "X-FROM": "Walmart_MarvisScript"
+        "X-FROM": "Tesla_MarvisScript"
     }
 
     r = requests.post(
