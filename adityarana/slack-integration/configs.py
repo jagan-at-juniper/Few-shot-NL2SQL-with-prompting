@@ -1,0 +1,15 @@
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+import slack
+
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+
+CREDS_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_creds.json")
+SLACK_TOKEN = os.environ.get('SLACK_TOKEN', '')
+SECRET_KEY = os.environ.get('SECRET_KEY', '')
+SLACK_CLIENT = slack.WebClient(token=SLACK_TOKEN)
+BOT_ID = SLACK_CLIENT.api_call('auth.test')['user_id']
+ORG_ID = ""
+MIST_TOKEN = ""

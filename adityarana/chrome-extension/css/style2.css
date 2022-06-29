@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri&family=Hubballi&family=Montserrat:wght@500&family=Source+Code+Pro:wght@300&family=Syncopate&display=swap');
+body{
+    width: 450px;
+    height: 600px;
+    margin: 0;
+    background-color: #ebf1f5;
+}
+
+.head-outer{
+    background: #2a2a2a;
+    display: flex;
+    align-items: center;
+    border-bottom: 5px solid #000000;
+}
+.b1{
+    width: 35%;
+}
+.b1 img{
+    display: inline-block;
+    width: 100%;
+}
+.b2{
+    display: inline-block;
+    text-align: right;
+    width: 53%;
+    margin-left: auto;
+    margin-right: 30px;
+    border-left: 1px solid #ffffff;
+}
+
+.welcome{
+    font-family: 'Montserrat';
+    font-size: 35px;
+    font-weight: bold;
+    color: #cccccc;   
+    text-align: right;
+}
+
+.welcome span{
+    color: #ffffff;
+    font-family: 'Syncopate', 'El Messiri';
+    letter-spacing: 3px;
+}
+
+#container{
+    box-shadow: rgba(0, 0, 0, 0.25) 0px 14px 28px, rgba(0, 0, 0, 0.22) 0px 10px 10px;
+    box-shadow: rgba(38, 193, 255, 0.4) 5px 5px, rgba(38, 193, 255, 0.3) 10px 10px, rgba(38, 193, 255, 0.2) 15px 15px, rgba(38, 193, 255, 0.1) 20px 20px, rgba(38, 193, 255, 0.05) 25px 25px;
+    background: #ffffff; 
+    width: 375px;
+    margin:40px auto;
+    padding: 30px;
+    padding-top: 0;
+    border-radius: 10px;
+
+}
+
+input{
+    border-radius: 0 !important;
+    margin-top: 30px;
+    padding: 20px 10px !important;
+    
+}
+
+.reqd{
+    color: #ff0000;
+    display: none;
+}
+
+button{
+    width: 120px;
+    font-family: 'Montserrat';
+    font-size: 14px !important;
+    letter-spacing: 1px;
+    background-color: #27bdfd;
+    color: #ffffff;
+    border: none !important;
+    border-radius: 20px !important;
+    margin: 0 auto;
+    margin-top: 30px;
+    padding: 10px 0 !important;
+}
+button:hover{
+    background-color: #00a7ee;
+    color: #ffffff !important;
+    border: none !important;
+    border: none !important;
+    border-radius: 20px !important;
+}
+#validation{
+    width: 191px;
+    font-size: 18px;
+    display: none;
+    text-align: right;
+    font-family: Hubballi;
+    font-weight: bolder;
+    color: #1c9621;
+}
+
+.footer{
+    position: absolute;
+    bottom: 0;
+    background-color: #2a2a2a;
+    width: 100%;
+    color: #ffffff;
+    font-family: 'Source Code Pro';
+    text-align: center;
+    padding: 5px;
+}

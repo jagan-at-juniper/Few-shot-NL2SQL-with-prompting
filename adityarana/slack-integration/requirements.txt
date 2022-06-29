@@ -1,0 +1,7 @@
+Flask==2.0.1
+matplotlib==3.3.3
+python-dotenv==0.20.0
+requests==2.26.0
+slackclient==2.9.4
+slackeventsapi==3.0.1
+flask-ngrok==0.0.25

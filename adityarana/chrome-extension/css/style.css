@@ -1,0 +1,170 @@
+body{
+    width: 450px;
+    height: 600px;
+    margin: 0;
+    background-color: #ebf1f5;
+}
+
+strong{
+    color: #a11818;
+}
+
+#headerBody{
+    background-color: #08182d;
+    padding: 0px 15px;
+    line-height: 35px;
+    font-size: 16px;
+    display: flex;
+    justify-content: space-between;
+}
+
+#headerText, #closeIcon{
+    color: #ffffff;
+    text-transform: uppercase;
+}
+
+#headerText{
+    letter-spacing: 3px;
+}
+
+#options{
+    display: flex;
+}
+
+#signOut{
+    color: #ffffff;
+    margin-right: 20px;
+    font-size: 14px;
+    line-height: 35px;
+    position: initial;
+    cursor: pointer;
+}
+
+
+#closeIcon{
+    cursor: pointer;
+    font-size: 105%;
+}
+
+#contentBody{
+    height: 505px;
+    overflow-y: auto;
+}
+
+.outerMessageBody{
+    margin: 20px 10px 0px 10px;
+}
+
+.outerMessageBody.out{
+    text-align: right;
+}
+
+.incomingMessage, .outgoingMessage{
+    max-width: 70%;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    display: inline-block;
+}
+
+.incomingMessage{
+    background: #ffffff;
+}
+
+.outgoingMessage{
+    background: #0084ff;
+    color: #ffffff;
+}
+
+
+#queryHandler{
+    margin: 10px;
+    line-height: 40px;
+    text-align: center;
+    display: flex;
+}
+
+#queryMessage{
+    width: 90%;
+    line-height: 40px;
+    border: 0;
+    padding: 0 20px;
+    font-size: 16px;
+    border-radius: 6px 0 0 6px;
+}
+
+#sendMessage{
+    border: 0;
+    padding: 0;
+    width: 10%;
+    background-color: #007bff;
+    line-height: 40px;
+    display: inline-block;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: #ffffff;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#sendMessage:hover{
+    background-color: #005dc0;
+}
+
+tr{
+    border-bottom: 1px solid #f2f2f2;
+    height: 40px;
+}
+tr:last-child{
+    border: 0;
+}
+
+td, th{
+    width: 150.5px;
+    max-width: 150.5px;
+    overflow: hidden;
+    padding: 0 10px;   
+}
+.noTopPad .incomingMessage{
+    padding: 0 10px;
+}
+.noTopMargin{
+    margin-top: 10px
+}
+.optContainer:first-child{
+    padding: 10px 0 20px 0;
+}
+.optContainer, .entContainer{
+    margin: 0;
+    width: 100%;
+    border-bottom: 1px solid #f2f2f2;
+}
+.entContainer{
+    padding: 7px 10px;
+}
+.optContainer:last-child{
+    border: 0;
+    padding-bottom: 10px;
+}
+
+.optionTitle{
+    font-weight: bold;
+    color: #16aaff;
+    font-size: 13px;
+}
+.optionDesc{
+    color: #aaaaaa;
+    font-size: 11px;
+}
+.respIcon{
+    width: 100%;
+    display: flex;
+}
+.icon{
+    display: inline-block;
+    width: 20%;
+}
+.inlineBlock{
+    display: inline-block;
+}

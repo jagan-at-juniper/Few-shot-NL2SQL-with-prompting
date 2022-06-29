@@ -1,0 +1,626 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "juniper assistant",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": [
+            "no thanks",
+            "nopes",
+            "be quiet",
+            "shut up",
+            "Shut up alexa",
+            "Close",
+            "No"
+          ]
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "QueryIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "hey marvis {query}",
+            "send {query}",
+            "hey {query}"
+          ]
+        },
+        {
+          "name": "ListApsIntent",
+          "slots": [
+            {
+              "name": "name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "how many eighties",
+            "how many a piece",
+            "how many a. p.\u0027s",
+            "list eighties",
+            "show a. p.\u0027s",
+            "list a. p.\u0027s",
+            "list a piece",
+            "show a piece",
+            "how many keys",
+            "how many keys do i have",
+            "how many apes do i have",
+            "how many apes",
+            "show eighties",
+            "give me a list of access points",
+            "give me a list of access points in {name}",
+            "give me a list of access points in my organization",
+            "what are the access points in my organization",
+            "what are the access points in {name}",
+            "what are the access points",
+            "show access points in {name}",
+            "show access points",
+            "list access points in {name}",
+            "list access points",
+            "access points in {name}"
+          ]
+        },
+        {
+          "name": "TroubleshootIntent",
+          "slots": [
+            {
+              "name": "device_name",
+              "type": "customNames",
+              "samples": [
+                "my device is {device_name}",
+                "my device name is {device_name}",
+                "{device_name}"
+              ]
+            }
+          ],
+          "samples": [
+            "what are the issues with gateway",
+            "what are the issues with switch",
+            "what are the issues with client",
+            "what are the issues with site",
+            "what are the issues",
+            "what are the issues with {device_name}",
+            "how is the user {device_name}",
+            "how is the gateway {device_name}",
+            "how is the switch {device_name}",
+            "how is the client {device_name}",
+            "how is the site {device_name}",
+            "How is {device_name}",
+            "Troubleshoot {device_name}",
+            "Troubleshoot"
+          ]
+        },
+        {
+          "name": "YesIntent",
+          "slots": [],
+          "samples": [
+            "Yes",
+            "Sure",
+            "Ya",
+            "Ofcourse"
+          ]
+        },
+        {
+          "name": "ListClientIntent",
+          "slots": [
+            {
+              "name": "var_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "how many clients on my network",
+            "show clients at site {var_name}",
+            "show users at site {var_name}",
+            "list clients at site {var_name}",
+            "list users at site {var_name}",
+            "users in my organization",
+            "give me a list of users",
+            "give me a list of clients",
+            "give me a list of users in {var_name}",
+            "give me a list of clients in {var_name}",
+            "give me a list of users in my organization",
+            "give me a list of clients in my organization",
+            "what are the clients in my organization",
+            "what are the users in my organization",
+            "what are the users in {var_name}",
+            "what are the clients in {var_name}",
+            "what are the users",
+            "what are the clients",
+            "show users in {var_name}",
+            "show clients in {var_name}",
+            "show users",
+            "show clients",
+            "list users in {var_name}",
+            "list clients in {var_name}",
+            "list users",
+            "list clients",
+            "users in {var_name}",
+            "clients in {var_name}"
+          ]
+        },
+        {
+          "name": "ListSwitchIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "how many switches",
+            "how many switches do i have",
+            "list susie\u0027s ",
+            "show susie\u0027s",
+            "show switches at site {site_name}",
+            "list switches at site {site_name}",
+            "give me a list of switches in {site_name}",
+            "give me a list of switches in my organization",
+            "give me a list of switches",
+            "what are the switches in {site_name}",
+            "what are the switches at my organization",
+            "what are the switches",
+            "show switches in {site_name}",
+            "show switches",
+            "list switches in {site_name}",
+            "list switches",
+            "switches in {site_name}",
+            "switches in my organization"
+          ]
+        },
+        {
+          "name": "ListGatewayIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "how many gateways do i have",
+            "how many gateways",
+            "show gateways at site {site_name}",
+            "list gateways at site {site_name}",
+            "give me a list of gateways in {site_name}",
+            "give me a list of gateways in my organization",
+            "give me a list of gateways",
+            "what are the gateways in {site_name}",
+            "what are the gateways in my organization",
+            "what are the gateways",
+            "show gateways in {site_name}",
+            "show gateways",
+            "list gateways in {site_name}",
+            "list gateways",
+            "gateways in {site_name}",
+            "gateways in my organization"
+          ]
+        },
+        {
+          "name": "UnhappyUsersIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "show on happy clients",
+            "list on happy clients",
+            "on happy client",
+            "on happy clients",
+            "unhappy user",
+            "unhappy client",
+            "list unhappy users at site {site_name}",
+            "list unhappy clients at site {site_name}",
+            "what are the users having issues in my organization",
+            "what are the clients having issues in my organization",
+            "what are the clients having issues at {site_name}",
+            "what are the users having issues at {site_name}",
+            "what are the users having issues",
+            "what are the clients having issues",
+            "give me a list of unhappy clients in {site_name}",
+            "give me a list of unhappy users in {site_name}",
+            "give me a list of unhappy users in my organization",
+            "give me a list of unhappy clients in my organization",
+            "give me a list of unhappy clients",
+            "give me a list of unhappy users",
+            "what are the unhappy clients in {site_name}",
+            "what are the unhappy users in {site_name}",
+            "what are the unhappy clients in my organization",
+            "what are the unhappy users in my organization",
+            "what are the unhappy clients",
+            "what are the unhappy users",
+            "list unhappy users in {site_name}",
+            "list unhappy users",
+            "show unhappy users in {site_name}",
+            "show unhappy users",
+            "unhappy users in {site_name}",
+            "unhappy users",
+            "list unhappy clients in {site_name}",
+            "list unhappy clients",
+            "show unhappy clients in {site_name}",
+            "show unhappy clients",
+            "unhappy clients in {site_name}",
+            "unhappy clients"
+          ]
+        },
+        {
+          "name": "UnhappySwitchIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "on happy susie\u0027s i",
+            "unhappy susie\u0027s",
+            "show on happy switches",
+            "list on happy switches",
+            "on happy switch",
+            "on happy switches",
+            "what are the switches having issues",
+            "what are the switches having issues at {site_name}",
+            "list switches having issues in {site_name}",
+            "show switches having issues in {site_name}",
+            "show switches having issues",
+            "list switches having issues",
+            "what are the unhappy switches in {site_name}",
+            "what are the unhappy switches in my organization",
+            "what are the unhappy switches",
+            "unhappy switches in my organization",
+            "show unhappy switches for {site_name}",
+            "show unhappy switches",
+            "list unhappy switches for {site_name}",
+            "list unhappy switches",
+            "unhappy switches for {site_name}",
+            "unhappy switches"
+          ]
+        },
+        {
+          "name": "UnhappyApsIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "unhappy keys",
+            "unhappy apes",
+            "list on happy aps",
+            "show on happy aps",
+            "show on happy access points",
+            "list on happy access points",
+            "unhappy access point",
+            "on happy access points",
+            "on happy ap",
+            "on happy aps",
+            "what are the access points having issues",
+            "what are the access points having issues at {site_name}",
+            "list access points having issues in {site_name}",
+            "show access points having issues in {site_name}",
+            "show access points having issues",
+            "list access points having issues",
+            "what are the unhappy access points in {site_name}",
+            "what are the unhappy unhappy access points in my organization",
+            "what are the unhappy access points",
+            "unhappy access points in my organization",
+            "show unhappy access points for {site_name}",
+            "show unhappy access points",
+            "list unhappy access points for {site_name}",
+            "list unhappy access points",
+            "unhappy access points for {site_name}",
+            "unhappy access points"
+          ]
+        },
+        {
+          "name": "UnhappyGatewayIntent",
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames"
+            }
+          ],
+          "samples": [
+            "show on happy gateways",
+            "list on happy gateways",
+            "on happy gateway",
+            "on happy gateways",
+            "what are the gateways having issue at {site_name}",
+            "what are the gateways having issues",
+            "list gateways having issues in {site_name}",
+            "show gateways having issues for {site_name}",
+            "show gateways having issues",
+            "list gateways having issues",
+            "what are the unhappy gateways in {site_name}",
+            "what are the unhappy gateways in my organization",
+            "unhappy gateways in my organization",
+            "what are the unhappy gateways",
+            "list unhappy gateways in {site_name}",
+            "list unhappy gateways",
+            "show unhappy gateways in {site_name}",
+            "show unhappy gateways",
+            "unhappy gateways in {site_name}",
+            "unhappy gateways"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "values": [
+            {
+              "id": "1",
+              "name": {
+                "value": "Jon 10",
+                "synonyms": [
+                  "Jon ten",
+                  "John ten"
+                ]
+              }
+            }
+          ],
+          "name": "AMAZON.FirstName"
+        },
+        {
+          "values": [
+            {
+              "name": {
+                "value": "ring solutions",
+                "synonyms": [
+                  "ring"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "rohans-iphone"
+              }
+            },
+            {
+              "name": {
+                "value": "abhis-iphone"
+              }
+            },
+            {
+              "name": {
+                "value": "google-home",
+                "synonyms": [
+                  "google"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "pan"
+              }
+            },
+            {
+              "name": {
+                "value": "mx-wan",
+                "synonyms": [
+                  "m. x. wan",
+                  "mx wan"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "core-1",
+                "synonyms": [
+                  "core one"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "access",
+                "synonyms": [
+                  "excess"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "us-mastercloset",
+                "synonyms": [
+                  "u. s. master closet",
+                  "us master closet",
+                  "u. s. mastercloset",
+                  "us mastercloset"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "ds-living room",
+                "synonyms": [
+                  "d. s. livingroom",
+                  "ds livingroom",
+                  "d. s. living room",
+                  "ds living room"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "us-master",
+                "synonyms": [
+                  "u. s. master",
+                  "us master"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "us-office",
+                "synonyms": [
+                  "u. s.  office",
+                  "us office"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "evo platforms",
+                "synonyms": [
+                  "evo platform",
+                  "evil platform"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "sujit qfx site",
+                "synonyms": [
+                  "surjit qfx sight",
+                  "surjit qfx site",
+                  "sujeet qfx sight",
+                  "sujeet qfx site"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "jonathan\u0027s site",
+                "synonyms": [
+                  "jonathan sight",
+                  "johnathan sight"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "wired assurance",
+                "synonyms": [
+                  "wired insurance",
+                  "wyatt insurance",
+                  "wyatt assurance"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "fabric demo",
+                "synonyms": [
+                  "favorite demo"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "abhi\u0027s home",
+                "synonyms": [
+                  "abby home",
+                  "abby\u0027s home",
+                  "a bees home",
+                  "a bee\u0027s home"
+                ]
+              }
+            }
+          ],
+          "name": "customNames"
+        }
+      ],
+      "modelConfiguration": {
+        "fallbackIntentSensitivity": {
+          "level": "LOW"
+        }
+      }
+    },
+    "dialog": {
+      "intents": [
+        {
+          "name": "TroubleshootIntent",
+          "confirmationRequired": false,
+          "prompts": {},
+          "slots": [
+            {
+              "name": "device_name",
+              "type": "customNames",
+              "elicitationRequired": true,
+              "confirmationRequired": false,
+              "prompts": {
+                "elicitation": "Elicit.Slot.348968096369.1409958859676"
+              }
+            }
+          ]
+        },
+        {
+          "name": "UnhappyUsersIntent",
+          "confirmationRequired": false,
+          "prompts": {},
+          "slots": [
+            {
+              "name": "site_name",
+              "type": "customNames",
+              "elicitationRequired": false,
+              "confirmationRequired": false,
+              "prompts": {}
+            }
+          ]
+        }
+      ],
+      "delegationStrategy": "ALWAYS"
+    },
+    "prompts": [
+      {
+        "id": "Elicit.Slot.348968096369.1409958859676",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "Please specify the device or site name"
+          }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.1208013753092.17696240016",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "Please state your site name."
+          }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.1397192605385.556421649854",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "Please state site name to find unhappy users"
+          }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.645342702699.506290986077",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "Please state the site name where you want to find any unhappy users"
+          }
+        ]
+      }
+    ]
+  },
+  "version": "116"
+}
