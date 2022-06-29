@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+ name: inventory
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: report-cronjob
+  namespace: inventory
+spec:
+  schedule: "0 1 1,16 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: inventory
+            image: gcr.io/mist-common-assets/mistsys/inventory-report:0.0.9
+            command: ["python3", "/report/main.py"]
+            envFrom:
+            - secretRef:
+                name: cost-monitoring-secret
+          restartPolicy: Never
