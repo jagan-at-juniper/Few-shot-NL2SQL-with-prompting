@@ -249,7 +249,7 @@ def bad_radio_detection(date_day, date_hour, last_hours=1, org_id="", site_id=""
         F.max("num_wlans").alias("num_wlans")
     )
 
-    Filter_query_1 = "band==5 and max_num_clients <1 and max_tx_phy_err>0 and num_wlans>0 "
+    Filter_query_1 = "band==5 and max_num_clients <1 and (max_tx_phy_err>0 or bcn_per_wlan < 500) and num_wlans>0)"
     df_radio_nf_problematic = df_radio_nf_g.filter(Filter_query_1).persist()
 
     return df_radio_nf_problematic
