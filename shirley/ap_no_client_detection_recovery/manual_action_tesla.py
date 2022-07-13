@@ -29,6 +29,7 @@ ENV_CONFIG = {
 
 PAPI_URL = 'http://papi-internal-{}.mist.pvt'.format(ENV)
 RADIO_REINIT_URL = "{}/internal/devices/{}/cmd/radio_reinit"
+WHITE_LIST_APS = []
 
 excel_columns = [
     'org_id', 'site_id', 'id', 'hostname', 'model', 'recover_time', 'firmware_version',
