@@ -38,9 +38,9 @@ excel_columns = [
 ]
 
 def write_to_sheet(pandas_df):
-    gc = pygsheets.authorize(service_file='./service_account.json')
+    gc = pygsheets.authorize(service_file='/home/hadoop/shirley/service_account.json')
 
-    ss = gc.open('Walmart_ap_no_client') # make sure Walmart_ap_no_client grant user editor permision
+    ss = gc.open('tesla_ap_no_client') # make sure Walmart_ap_no_client grant user editor permision
 
     try:
         ws = ss.worksheet_by_title('recoverd_ap_list')
