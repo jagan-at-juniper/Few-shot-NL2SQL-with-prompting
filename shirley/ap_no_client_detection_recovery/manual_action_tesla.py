@@ -43,10 +43,10 @@ def write_to_sheet(pandas_df):
     ss = gc.open('tesla_ap_no_client') # make sure Walmart_ap_no_client grant user editor permision
 
     try:
-        ws = ss.worksheet_by_title('recoverd_ap_list')
+        ws = ss.worksheet_by_title('recovered_ap_list')
     except pygsheets.exceptions.WorksheetNotFound:
-        ss.add_worksheet('recoverd_ap_list', rows=1000)
-        ws = ss.worksheet_by_title('recoverd_ap_list')
+        ss.add_worksheet('recovered_ap_list', rows=10)
+        ws = ss.worksheet_by_title('recovered_ap_list')
 
         # init the new sheet
         header = excel_columns
