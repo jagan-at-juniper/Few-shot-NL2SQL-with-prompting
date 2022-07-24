@@ -1,3 +1,4 @@
+from lib2to3.pgen2 import token
 from configs import *
 from flask import Flask, request
 from slackeventsapi import SlackEventAdapter
@@ -38,11 +39,8 @@ def process_query(user_id, query):
     response = json.loads(marvis_resp.text)
     resp_msg = response['data']
 
-    print(f"\n+++++++\n{resp_msg}\n++++++++\n")
-
     response_handler = ResponseHandler(resp_msg)
     response_blocks = response_handler.generate_response_blocks()
-    print(f"\n-------\n{response_blocks}\n-------\n")
 
     if len(response_blocks) == 0:
         post_message(user_id, "Unable to generate response for you query.")

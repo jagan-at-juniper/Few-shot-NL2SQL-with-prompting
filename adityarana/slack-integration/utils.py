@@ -17,6 +17,10 @@ class CREDS_OPS:
             self.all_users_creds = {}
             message = "SERVER ERROR!!! Unable to fetch user credentials..."
             post_message(self.user_id, message)
+    
+    def read_pinned_messages():
+        pinned_msg_object = SLACK_CLIENT.pins_list(token=USER_TOKEN, channel=BOT_ID)
+        pinned_msg_list = [item.get("message", {}).get("text", "") for item in pinned_msg_object.get("items", [])]
 
     def fetch_creds(self):
         token = self.fetch_token()
