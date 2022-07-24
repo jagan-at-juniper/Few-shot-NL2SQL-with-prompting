@@ -4,27 +4,10 @@ from slackeventsapi import SlackEventAdapter
 from mist_api import post_data
 import json
 from threading import Thread
-from utils import CREDS_OPS, ResponseHandler
+from utils import *
 
 app = Flask(__name__)
-
 slack_event_adapter = SlackEventAdapter(SECRET_KEY, '/slack/events', app)
-
-def post_message(channel, text):
-    SLACK_CLIENT.chat_postMessage(channel=channel, text=text)
-
-def post_blocks(channel, block):
-    SLACK_CLIENT.chat_postMessage(channel=channel, blocks=block)
-
-def get_message_block(response_text):
-    msg_block = {
-        "type": "section",
-        "text": {
-            "type": "mrkdwn",
-            "text": response_text
-        }
-    }  
-    return msg_block
 
 def process_query(user_id, query):
     # intializing credentials class 
@@ -55,9 +38,15 @@ def process_query(user_id, query):
     response = json.loads(marvis_resp.text)
     resp_msg = response['data']
 
+    print(f"\n+++++++\n{resp_msg}\n++++++++\n")
+
     response_handler = ResponseHandler(resp_msg)
     response_blocks = response_handler.generate_response_blocks()
+    print(f"\n-------\n{response_blocks}\n-------\n")
 
+    if len(response_blocks) == 0:
+        post_message(user_id, "Unable to generate response for you query.")
+        return
     post_blocks(user_id, response_blocks)
 
 

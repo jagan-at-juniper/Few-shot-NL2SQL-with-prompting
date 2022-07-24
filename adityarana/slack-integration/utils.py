@@ -91,6 +91,8 @@ class CREDS_OPS:
 class ResponseHandler():
     def __init__(self, response):
         self.resp_msg = response
+        self.response_blocks = []
+        self.response_text = ""
     
     def get_message_block(self, response_text):
         msg_block = {
@@ -102,60 +104,53 @@ class ResponseHandler():
         }  
         return msg_block
     
-    def text_handler(self):
-        pass
+    def text_handler(self, msg_block):
+        if msg_block['response'][0].find('please visit') != -1: return
+        self.response_text = "\n".join(msg_block['response'])
+        response_block = self.get_message_block(self.response_text)
+        self.response_blocks.append(response_block)
 
-    def entity_list_handler(self):
-        pass
+    def entity_list_handler(self, msg_block):
+        for idx, resp_block in enumerate(msg_block['response'][0]['list']):
+            self.response_text = "{}*{}. `{}`*\n*- Details:* {}\n- *Try:* {}\n\n".format(self.response_text, (idx+1), resp_block['title'], resp_block['description'], resp_block['display']['phrase'])
 
-    def options_handler(self):
-        pass
+        response_block = self.get_message_block(self.response_text)
+        self.response_blocks.append(response_block)
 
-    def table_handler(self):
-        pass     
+    def options_handler(self, msg_block):
+        for idx, resp_block in enumerate(msg_block['response']):
+            details = ""
+            for details_block in resp_block['response']:
+                if not details_block['type'] == 'text': continue
+                details = "{}  *+* {}\n".format(details, details_block['response'][0])
+            self.response_text = "{}*{}. `{}`* : {}\n*- Details:*\n{}\n\n".format(self.response_text, (idx+1), resp_block['title'], resp_block['description'], details)
+        response_block = self.get_message_block(self.response_text)
+        self.response_blocks.append(response_block)
+
+    def table_handler(self, msg_block):
+        for idx, resp_block in enumerate(msg_block['response'][0]['item_list']):
+            name = resp_block['Name']
+            site = resp_block['Site']
+            mac = resp_block['Mac']
+            self.response_text = "{}*{}. `{}`*\n  *+ Mac:* {}\n  *+ Site:* {}\n\n".format(self.response_text, idx+1, name, mac, site)
+        response_block = self.get_message_block(self.response_text)
+        self.response_blocks.append(response_block)     
 
     def generate_response_blocks(self):
-        response_blocks = []
-
         for msg_block in self.resp_msg:
-            response_text = ""
+            self.response_text = ""
+
             if msg_block['type'] == 'text':
-                if msg_block['response'][0].find('please visit') != -1: continue
-
-                response_text = "\n".join(msg_block['response'])
-
-                response_block = self.get_message_block(response_text)
-                response_blocks.append(response_block)
+                self.text_handler(msg_block)
 
             elif msg_block['type'] == 'entityList':
-                for idx, resp_block in enumerate(msg_block['response'][0]['list']):
-                    response_text = "{}*{}. `{}`*\n*- Details:* {}\n- *Try:* {}\n\n".format(response_text, (idx+1), resp_block['title'], resp_block['description'], resp_block['display']['phrase'])
-
-                response_block = self.get_message_block(response_text)
-                response_blocks.append(response_block)
-
+                self.entity_list_handler(msg_block)
+            
             elif msg_block['type'] == 'options':
-                for idx, resp_block in enumerate(msg_block['response']):
-                    details = ""
-                    for details_block in resp_block['response']:
-                        if not details_block['type'] == 'text': continue
-                        details = "{}  *+* {}\n".format(details, details_block['response'][0])
-
-                    response_text = "{}*{}. `{}`* : {}\n*- Details:*\n{}\n\n".format(response_text, (idx+1), resp_block['title'], resp_block['description'], details)
-
-                response_block = self.get_message_block(response_text)
-                response_blocks.append(response_block)
+                self.options_handler(msg_block)
 
             elif msg_block['type'] == 'table':
-                for idx, resp_block in enumerate(msg_block['response'][0]['item_list']):
-                    name = resp_block['Name']
-                    site = resp_block['Site']
-                    mac = resp_block['Mac']
-
-                    response_text = "{}*{}. `{}`*\n  *+ Mac:* {}\n  *+ Site:* {}\n\n".format(response_text, idx+1, name, mac, site)
-
-                response_block = self.get_message_block(response_text)
-                response_blocks.append(response_block)
+                self.table_handler(msg_block)
         
-        return response_blocks
+        return self.response_blocks
 
