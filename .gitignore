@@ -22,3 +22,5 @@ project/boot/
 
 /metastore_db/
 derby.log
+
+/adityarana/slack-integration

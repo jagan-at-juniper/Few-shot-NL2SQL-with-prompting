@@ -1,11 +1,10 @@
-from matplotlib import use
 from configs import *
 from flask import Flask, request
 from slackeventsapi import SlackEventAdapter
 from mist_api import post_data
 import json
 from threading import Thread
-from utils import CREDS_OPS
+from utils import CREDS_OPS, ResponseHandler
 
 app = Flask(__name__)
 
@@ -55,49 +54,9 @@ def process_query(user_id, query):
 
     response = json.loads(marvis_resp.text)
     resp_msg = response['data']
-    response_blocks = []
 
-    print(f"\n++++++++\n{resp_msg}\n++++++++\n")
-
-    for msg_block in resp_msg:
-        response_text = ""
-        if msg_block['type'] == 'text':
-            if msg_block['response'][0].find('please visit') != -1: continue
-            
-            response_text = "\n".join(msg_block['response'])
-
-            response_block = get_message_block(response_text)
-            response_blocks.append(response_block)
-        
-        elif msg_block['type'] == 'entityList':
-            for idx, resp_block in enumerate(msg_block['response'][0]['list']):
-                response_text = "{}*{}. `{}`*\n*- Details:* {}\n- *Try:* {}\n\n".format(response_text, (idx+1), resp_block['title'], resp_block['description'], resp_block['display']['phrase'])
-            
-            response_block = get_message_block(response_text)
-            response_blocks.append(response_block)
-        
-        elif msg_block['type'] == 'options':
-            for idx, resp_block in enumerate(msg_block['response']):
-                details = ""
-                for details_block in resp_block['response']:
-                    if not details_block['type'] == 'text': continue
-                    details = "{}  *+* {}\n".format(details, details_block['response'][0])
-
-                response_text = "{}*{}. `{}`* : {}\n*- Details:*\n{}\n\n".format(response_text, (idx+1), resp_block['title'], resp_block['description'], details)
-            
-            response_block = get_message_block(response_text)
-            response_blocks.append(response_block)
-        
-        elif msg_block['type'] == 'table':
-            for idx, resp_block in enumerate(msg_block['response'][0]['item_list']):
-                name = resp_block['Name']
-                site = resp_block['Site']
-                mac = resp_block['Mac']
-
-                response_text = "{}*{}. `{}`*\n  *+ Mac:* {}\n  *+ Site:* {}\n\n".format(response_text, idx+1, name, mac, site)
-            
-            response_block = get_message_block(response_text)
-            response_blocks.append(response_block)
+    response_handler = ResponseHandler(resp_msg)
+    response_blocks = response_handler.generate_response_blocks()
 
     post_blocks(user_id, response_blocks)
 
