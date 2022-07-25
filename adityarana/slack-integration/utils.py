@@ -8,8 +8,9 @@ def post_blocks(channel, block):
     SLACK_CLIENT.chat_postMessage(channel=channel, blocks=block)
 
 class CREDS_OPS:
-    def __init__(self, user_id, query):
+    def __init__(self, user_id, channel_id, query):
         self.user_id = user_id
+        self.channel_id = channel_id
         self.query = query
         try:
             self.all_users_creds = json.load(open(CREDS_FILE_PATH))
@@ -18,11 +19,13 @@ class CREDS_OPS:
             message = "SERVER ERROR!!! Unable to fetch user credentials..."
             post_message(self.user_id, message)
     
-    def read_pinned_messages():
-        pinned_msg_object = SLACK_CLIENT.pins_list(token=USER_TOKEN, channel=BOT_ID)
-        pinned_msg_list = [item.get("message", {}).get("text", "") for item in pinned_msg_object.get("items", [])]
+    def read_pinned_messages(self):
+        pinned_msg_object = SLACK_CLIENT.pins_list(token=USER_TOKEN, channel=self.channel_id)
+        pinned_msg_list = [{"time": item.get("created", 0), "message": item.get("message", {}).get("text", "")} for item in pinned_msg_object.get("items", [])]
+        print("Pinned Messages: ", pinned_msg_list)
 
     def fetch_creds(self):
+        self.read_pinned_messages()
         token = self.fetch_token()
         org_id = self.fetch_orgId()
 

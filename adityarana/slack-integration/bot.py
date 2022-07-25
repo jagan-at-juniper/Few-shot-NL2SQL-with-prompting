@@ -10,9 +10,9 @@ from utils import *
 app = Flask(__name__)
 slack_event_adapter = SlackEventAdapter(SECRET_KEY, '/slack/events', app)
 
-def process_query(user_id, query):
+def process_query(user_id, channel_id, query):
     # intializing credentials class 
-    credentials = CREDS_OPS(user_id, query)
+    credentials = CREDS_OPS(user_id, channel_id, query)
 
     # checking if user is setting credentials
     if credentials.is_setting_creds(): return
@@ -51,13 +51,14 @@ def process_query(user_id, query):
 @slack_event_adapter.on('message')
 def message(payload):
     event = payload.get('event', {})
-    user_id = event.get('user')
+    user_id = event.get('user', "")
+    channel_id = event.get('channel', "")
     print(BOT_ID, event)
 
     if BOT_ID != user_id:   
         msg = event.get('text')
 
-        thr = Thread(target=process_query, args=[user_id, msg])
+        thr = Thread(target=process_query, args=[user_id, channel_id, msg])
         thr.start()
 
 
