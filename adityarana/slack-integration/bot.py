@@ -6,12 +6,14 @@ from mist_api import post_data
 import json
 from threading import Thread
 from utils import *
+import time
 
 app = Flask(__name__)
 slack_event_adapter = SlackEventAdapter(SECRET_KEY, '/slack/events', app)
 
 def process_query(user_id, channel_id, query):
     # intializing credentials class 
+    start = time.time()
     credentials = CREDS_OPS(user_id, channel_id, query)
 
     # checking if user is setting credentials
@@ -19,21 +21,12 @@ def process_query(user_id, channel_id, query):
 
     # fetching token and org_id
     token, org_id = credentials.fetch_creds()
-    if not credentials.verify_creds(token, org_id): return
-
     print(f"Token: {token} \nOrg ID: {org_id}")
 
     marvis_resp = post_data(query, token, org_id)
-    
     # handling error response code
-    if marvis_resp.status_code == 404:
-        response_text = "Invalid Org ID Provided. Please reset it again.\nSend `Org <og_id>` to set you Org ID"
-        post_message(user_id, response_text)
-        return
-    
-    if marvis_resp.status_code == 401:
-        response_text = "Invalid Token Key Provided. Please reset it again.\nSend `Token <token>` to set you Auth Key"
-        post_message(user_id, response_text)
+    if marvis_resp.status_code == 404 or marvis_resp.status_code == 401:
+        error_handler(marvis_resp.status_code, user_id)
         return
 
     response = json.loads(marvis_resp.text)
@@ -63,4 +56,4 @@ def message(payload):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
