@@ -1,33 +1,24 @@
 import os
 import re
 from configs import *
+from bot_core import DEFAULT_RESPONSES
 
-DEFAULT_RESPONSES = {
-    "error": "Something went wrong...",
-    "invalid_token": "Invalid User Token! Please follow these steps to set your Token Key.\n1. Provide your token key by sending `Token <your token>` in the chat.\n2. Pin that message in the chat by selecting the message, then `More Actions > Pin to this conversation`",
-    "invalid_org": "Org ID not found! Please follow these steps to set your Org ID.\n1. Provide your Org ID by sending `org_id <your org_id>` in the chat.\n2. Pin that message in the chat by selecting the message, then `More Actions > Pin to this conversation`"
-}
+def post_message(channel, text):
+    SLACK_CLIENT.chat_postMessage(channel=channel, text=text)
 
-class MESSENGER():
-    def __init__(self):
-        pass
-
-    def post_message(self, channel, text):
-        SLACK_CLIENT.chat_postMessage(channel=channel, text=text)
-
-    def post_blocks(self, channel, block):
-        SLACK_CLIENT.chat_postMessage(channel=channel, blocks=block)
+def post_blocks(channel, block):
+    SLACK_CLIENT.chat_postMessage(channel=channel, blocks=block)
 
 class ERROR_HANDLER():
     def __init__(self):
-        self.messenger = MESSENGER()
+        pass
 
     def status_code_handler(self, status_code, user_id):
         if status_code == 401:
-            self.messenger.post_message(user_id, DEFAULT_RESPONSES["invalid_token"])
+            post_message(user_id, DEFAULT_RESPONSES["invalid_token"])
     
         elif status_code == 404:
-            self.messenger.post_message(self, user_id, DEFAULT_RESPONSES["invalid_org"])
+            post_message(user_id, DEFAULT_RESPONSES["invalid_org"])
 
 class CREDS_OPS:
     def __init__(self, user_id, channel_id, query):
@@ -35,17 +26,15 @@ class CREDS_OPS:
         self.channel_id = channel_id
         self.query = query
 
-        self.messenger = MESSENGER()
-    
     def is_setting_creds(self):
         if re.match("(?i)^(token ).{30,}", self.query.strip()):
-            message = "Your are setting Token key. Next step: *Pin this message to the conversation*"
-            self.messenger.post_message(self.user_id, message)
+            message = DEFAULT_RESPONSES["setting_token"]
+            post_message(self.user_id, message)
             return True
         
         elif re.match("(?i)^(org_id ).{20,}", self.query.strip()):
-            message = "Your are setting Org ID. Next step: *Pin this message to the conversation*"
-            self.messenger.post_message(self.user_id, message)
+            message = DEFAULT_RESPONSES["setting_org"]
+            post_message(self.user_id, message)
             return True
 
         return False

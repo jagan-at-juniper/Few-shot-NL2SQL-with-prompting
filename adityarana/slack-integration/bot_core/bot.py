@@ -1,5 +1,6 @@
 from bot_core.mist_api import *
-from bot_core.utils import MESSENGER, CREDS_OPS, ERROR_HANDLER, RESPONSE_HANDLER
+from bot_core.utils import *
+from bot_core import DEFAULT_RESPONSES
 
 class BOT_PROCESSOR():
     def __init__(self, event):
@@ -12,14 +13,12 @@ class BOT_PROCESSOR():
         self.org_id = ""
         self.receiver = ""
 
-        self.messenger = MESSENGER()
         self.error_handler = ERROR_HANDLER()
         self.credentials = CREDS_OPS(self.user_id, self.channel_id, self.query)
     
     def fetch_credentials(self):
         if self.channel_type == 'im':
             self.receiver = self.user_id
-
             if self.credentials.is_setting_creds(): return
             self.token, self.org_id = self.credentials.fetch_creds_from_pinned_msg()
 
@@ -35,7 +34,9 @@ class BOT_PROCESSOR():
     def process_query(self):
         if not self.fetch_credentials(): return
 
-        print(f"Token: {self.token} \nOrg ID: {self.org_id}")
+        if not (self.token or self.org_id):
+            post_message(self.receiver, DEFAULT_RESPONSES['invalid_creds'])
+            return
 
         marvis_resp = post_data(self.query, self.token, self.org_id)
         # handling error response code
@@ -50,6 +51,6 @@ class BOT_PROCESSOR():
         response_blocks = response_handler.generate_response_blocks()
 
         if len(response_blocks) == 0:
-            self.messenger.post_message(self.receiver, "Unable to generate response for you query.")
+            post_message(self.receiver, DEFAULT_RESPONSES["empty_response"])
             return
-        self.messenger.post_blocks(self.receiver, response_blocks)
+        post_blocks(self.receiver, response_blocks)
