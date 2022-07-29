@@ -1,4 +1,4 @@
-import imp
+import os
 import re
 from configs import *
 
@@ -20,33 +20,46 @@ class MESSENGER():
 
 class ERROR_HANDLER():
     def __init__(self):
-        pass
+        self.messenger = MESSENGER()
 
     def status_code_handler(self, status_code, user_id):
         if status_code == 401:
-            MESSENGER.post_message(user_id, DEFAULT_RESPONSES["invalid_token"])
+            self.messenger.post_message(user_id, DEFAULT_RESPONSES["invalid_token"])
     
         elif status_code == 404:
-            MESSENGER.post_message(self, user_id, DEFAULT_RESPONSES["invalid_org"])
+            self.messenger.post_message(self, user_id, DEFAULT_RESPONSES["invalid_org"])
 
 class CREDS_OPS:
     def __init__(self, user_id, channel_id, query):
         self.user_id = user_id
         self.channel_id = channel_id
         self.query = query
-        self.pinned_msg_list = []
+
         self.messenger = MESSENGER()
+    
+    def is_setting_creds(self):
+        if re.match("(?i)^(token ).{30,}", self.query.strip()):
+            message = "Your are setting Token key. Next step: *Pin this message to the conversation*"
+            self.messenger.post_message(self.user_id, message)
+            return True
+        
+        elif re.match("(?i)^(org_id ).{20,}", self.query.strip()):
+            message = "Your are setting Org ID. Next step: *Pin this message to the conversation*"
+            self.messenger.post_message(self.user_id, message)
+            return True
+
+        return False
     
     def read_pinned_messages(self):
         pinned_msg_object = SLACK_CLIENT.pins_list(token=USER_TOKEN, channel=self.channel_id)
         pinned_msg_list = [{"time": item.get("created", 0), "message": item.get("message", {}).get("text", "")} for item in pinned_msg_object.get("items", [])]
         return pinned_msg_list
 
-    def fetch_creds(self):
-        self.pinned_msg_list = self.read_pinned_messages()
+    def fetch_creds_from_pinned_msg(self):
+        pinned_msg_list = self.read_pinned_messages()
         creds_dict = {"token": "", "org_id": ""}
 
-        for item in self.pinned_msg_list:
+        for item in pinned_msg_list:
             pinned_msg = item.get("message", "").strip()
             
             # reading token
@@ -60,19 +73,12 @@ class CREDS_OPS:
                 creds_dict["org_id"] = org_id
 
         return creds_dict["token"], creds_dict["org_id"]
+    
+    def fetch_channel_creds(self):
+        token = os.environ.get('CHANNEL_TOKEN', '')
+        org_id = os.environ.get('CHANNEL_ORG_ID', '')
 
-    def is_setting_creds(self):
-        if re.match("(?i)^(token ).{30,}", self.query.strip()):
-            message = "Your are setting Token key. Next step: *Pin this message to the conversation*"
-            self.messenger.post_message(self.user_id, message)
-            return True
-        
-        elif re.match("(?i)^(org_id ).{20,}", self.query.strip()):
-            message = "Your are setting Org ID. Next step: *Pin this message to the conversation*"
-            self.messenger.post_message(self.user_id, message)
-            return True
-
-        return False
+        return token, org_id
 
 class RESPONSE_HANDLER():
     def __init__(self, response):
