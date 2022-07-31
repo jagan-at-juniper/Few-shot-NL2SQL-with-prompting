@@ -1,0 +1,11 @@
+-- Rename this file to .env
+
+-- Insert Your Token and API Keys
+
+-- Slack Tokens
+BOT_TOKEN=xoxb-123
+USER_TOKEN=xoxp-123
+
+-- Mist API Token & Org ID for bot added to public channel
+CHANNEL_TOKEN=abc123
+CHANNEL_ORG_ID=xyz
