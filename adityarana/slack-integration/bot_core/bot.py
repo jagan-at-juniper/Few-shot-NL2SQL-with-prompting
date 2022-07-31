@@ -40,7 +40,7 @@ class BOT_PROCESSOR():
 
         marvis_resp = post_data(self.query, self.token, self.org_id)
         # handling error response code
-        if marvis_resp.status_code == 404 or marvis_resp.status_code == 401:
+        if marvis_resp.status_code != 200:
             self.error_handler.status_code_handler(marvis_resp.status_code, self.receiver)
             return
 
@@ -50,7 +50,4 @@ class BOT_PROCESSOR():
         response_handler = RESPONSE_HANDLER(resp_msg)
         response_blocks = response_handler.generate_response_blocks()
 
-        if len(response_blocks) == 0:
-            post_message(self.receiver, DEFAULT_RESPONSES["empty_response"])
-            return
         post_blocks(self.receiver, response_blocks)

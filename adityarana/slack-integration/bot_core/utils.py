@@ -133,5 +133,8 @@ class RESPONSE_HANDLER():
             elif msg_block['type'] == 'table':
                 self.table_handler(msg_block)
         
+        if len(self.response_blocks) == 0:
+            self.get_message_block(DEFAULT_RESPONSES["empty_response"])
+        
         return self.response_blocks
 
