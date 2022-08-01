@@ -64,8 +64,8 @@ class CREDS_OPS:
         return creds_dict["token"], creds_dict["org_id"]
     
     def fetch_channel_creds(self):
-        token = os.environ.get('CHANNEL_TOKEN', '')
-        org_id = os.environ.get('CHANNEL_ORG_ID', '')
+        token = os.environ.get('MIST_CHANNEL_TOKEN', '')
+        org_id = os.environ.get('MIST_CHANNEL_ORG_ID', '')
 
         return token, org_id
 
