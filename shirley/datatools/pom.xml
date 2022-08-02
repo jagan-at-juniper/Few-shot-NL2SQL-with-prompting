@@ -13,7 +13,7 @@
     <properties>
 
         <protobuf-java.version>3.10.0</protobuf-java.version>
-        <aws-java-sdk.version>1.11.655</aws-java-sdk.version>
+        <aws-java-sdk.version>1.12.68</aws-java-sdk.version>
     </properties>
 
 
