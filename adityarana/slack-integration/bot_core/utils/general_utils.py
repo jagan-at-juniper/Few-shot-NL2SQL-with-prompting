@@ -1,6 +1,6 @@
 import os
 import re
-from configs import SLACK_CLIENT, USER_TOKEN
+from configs import *
 
 DEFAULT_RESPONSES = {
     "error": "Something went wrong...",
@@ -60,10 +60,7 @@ class Cred_Ops:
         return creds_dict["token"], creds_dict["org_id"]
     
     def _fetch_channel_creds(self):
-        token = os.environ.get('MIST_CHANNEL_TOKEN', '')
-        org_id = os.environ.get('MIST_CHANNEL_ORG_ID', '')
-
-        return token, org_id
+        return MIST_CHANNEL_TOKEN, MIST_CHANNEL_ORG
     
     def is_setting_creds(self, query):
         if re.match("(?i)^(token ).{30,}", query.strip()):
@@ -161,7 +158,8 @@ class Response_Handler():
                 self._table_handler(msg_block)
         
         if len(self.response_blocks) == 0:
-            self._get_message_block(DEFAULT_RESPONSES["empty_response"])
+            response_block = self._get_message_block(DEFAULT_RESPONSES["empty_response"])
+            self.response_blocks.append(response_block)
         
         return self.response_blocks
 

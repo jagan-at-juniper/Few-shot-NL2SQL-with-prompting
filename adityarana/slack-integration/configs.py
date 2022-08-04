@@ -16,3 +16,7 @@ SECRET_KEY = os.environ.get('SLACK_SECRET_KEY', '')
 # Initialising slack client
 SLACK_CLIENT = slack.WebClient(token=BOT_TOKEN)
 BOT_ID = SLACK_CLIENT.api_call('auth.test')['user_id']
+
+# MIST TOKENS
+MIST_CHANNEL_TOKEN = os.environ.get('MIST_CHANNEL_TOKEN', '')
+MIST_CHANNEL_ORG = os.environ.get('MIST_CHANNEL_ORG_ID', '')
