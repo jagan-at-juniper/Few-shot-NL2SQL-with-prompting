@@ -2,8 +2,7 @@ from configs import *
 from flask import Flask
 from slackeventsapi import SlackEventAdapter
 from threading import Thread
-from bot_core.bot import BOT_PROCESSOR
-import os
+from bot_core import BOT_PROCESSOR
 
 app = Flask(__name__)
 slack_event_adapter = SlackEventAdapter(SECRET_KEY, '/slack/events', app)
@@ -18,8 +17,15 @@ def message(payload):
         BOT = BOT_PROCESSOR(event)
 
         thr = Thread(target=BOT.process_query)
-        thr.start()
+        try:
+            thr.start()
+        except Exception as e:
+            print("Error while running the process thread. Caught Exception {}".format(e))
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=os.environ.get("PORT", PORT))
+    try:
+        app.run(debug=True, port=os.environ.get("PORT", PORT))
+    except Exception as e:
+        print("Error while running the application. Caught Exception {}".format(e))
+

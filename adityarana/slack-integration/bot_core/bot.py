@@ -1,53 +1,49 @@
-from bot_core.mist_api import *
-from bot_core.utils import *
-from bot_core import DEFAULT_RESPONSES
+import json
+from .utils import (
+    Error_Handler,
+    Cred_Ops,
+    Response_Handler,
+    fetch_marvis_response,
+    post_blocks
+)
 
 class BOT_PROCESSOR():
     def __init__(self, event):
         self.user_id = event.get("user", "")
         self.channel_id = event.get("channel", "")
-        self.query = event.get("text", "")
+        self.user_query = event.get("text", "")
         self.channel_type = event.get("channel_type", "")
 
-        self.token = ""
-        self.org_id = ""
-        self.receiver = ""
-
-        self.error_handler = ERROR_HANDLER()
-        self.credentials = CREDS_OPS(self.user_id, self.channel_id, self.query)
+        self.receiver = self._get_receiver()
     
-    def fetch_credentials(self):
-        if self.channel_type == 'im':
-            self.receiver = self.user_id
-            if self.credentials.is_setting_creds(): return
-            self.token, self.org_id = self.credentials.fetch_creds_from_pinned_msg()
-
-        elif self.channel_type == 'channel':
-            self.receiver = self.channel_id
-            self.token, self.org_id = self.credentials.fetch_channel_creds()
-
-        else:
-            return
-        
-        return True
+    def _get_receiver(self):
+        receiver = self.user_id if self.channel_type == "im" else self.channel_id if self.channel_type == "channel" else ""
+        return receiver
 
     def process_query(self):
-        if not self.fetch_credentials(): return
+        credentials = Cred_Ops(self.receiver, self.channel_id)
 
-        if not (self.token or self.org_id):
-            post_message(self.receiver, DEFAULT_RESPONSES['invalid_creds'])
-            return
+        # checking if user is setting credentials if using private conversation
+        if self.channel_type == "im":
+            if credentials.is_setting_creds(self.user_query): return
 
-        marvis_resp = post_data(self.query, self.token, self.org_id)
+        # fetching credentials
+        token, org_id = credentials.fetch_credentials(self.channel_type)
+
+        # verify credentials
+        if not credentials.verify_credentials(token, org_id): return
+
+        # fetching marvis response for user query
+        api_response = fetch_marvis_response(self.user_query, token, org_id)
+
         # handling error response code
-        if marvis_resp.status_code != 200:
-            self.error_handler.status_code_handler(marvis_resp.status_code, self.receiver)
+        if api_response.status_code != 200:
+            Error_Handler.status_code_handler(api_response.status_code, self.receiver)
             return
 
-        response = json.loads(marvis_resp.text)
-        resp_msg = response['data']
+        response_data = json.loads(api_response.text)
 
-        response_handler = RESPONSE_HANDLER(resp_msg)
-        response_blocks = response_handler.generate_response_blocks()
+        response_handler = Response_Handler(response_data)
+        formatted_response_blocks = response_handler.generate_response_blocks()
 
-        post_blocks(self.receiver, response_blocks)
+        post_blocks(self.receiver, formatted_response_blocks)

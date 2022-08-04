@@ -1,7 +1,7 @@
 import requests
 import json
 
-def get_payload_header(query_msg, mist_token, org_id):
+def _get_payload_header(query_msg, mist_token, org_id):
     auth_key = "Token {}".format(mist_token)
     payload = json.dumps({
       "type": "phrase",
@@ -22,10 +22,10 @@ def get_payload_header(query_msg, mist_token, org_id):
     return payload, header
 
 
-def post_data(query_msg, mist_token, org_id):
+def fetch_marvis_response(query_msg, mist_token, org_id):
     url = "https://api.mistsys.com/api/v1/labs/orgs/" + org_id + "/chatbot_converse"
    
-    payload, headers = get_payload_header(query_msg, mist_token, org_id)
+    payload, headers = _get_payload_header(query_msg, mist_token, org_id)
     
     response = requests.request("POST", url, headers=headers, data=payload)
     return response
