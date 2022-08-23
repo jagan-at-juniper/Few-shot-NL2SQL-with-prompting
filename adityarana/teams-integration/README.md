@@ -34,4 +34,4 @@
 
 ### <u>Step 4:</u> Pointing your Marvis Teams bot to your hosted Web Application
 1. Log on to [Botframework Portal](https://dev.botframework.com). Go to `My Bots` and open your bot application.
-2. Redirect to `Settings` tab and under `Configuration` > `Messaging Endpoint`, point to **/api/messages** endpoint of your web app url. Ex: if your web app url is **https:mycustombot.com** then, you need to point to **https:mycustombot.com/api/messages**
+2. Redirect to `Settings` tab and under `Configuration` > `Messaging Endpoint`, point to **/api/messages** endpoint of your web app url. Ex: if your web app url is **https://mycustombot.com** then, you need to point to **https://mycustombot.com/api/messages**
