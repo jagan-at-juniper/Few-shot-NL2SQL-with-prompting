@@ -75,15 +75,9 @@ async def message():
         return resp
 
     activity = Activity().deserialize(body)
-    print("Activity: \n", activity)
     auth_header = request.headers["Authorization"] if "Authorization" in request.headers else ""
-    response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
-    if response:
-        return jsonify(
-                    message=response.body,
-                    status=response.status
-                )
-    print("Time Taken", time.time() - start)
+    await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
+    print("Time Taken:", time.time() - start)
     return jsonify(success=True)
 
 

@@ -1,52 +1,52 @@
 from botbuilder.core import ActivityHandler, TurnContext
-from h11 import ERROR
 from bot_core.utils import (
     Error_Handler,
     Response_Handler,
     Cred_Ops,
-    post_message,
-    fetch_marvis_response
+    Mist_Api,
+    post_message
 )
 import json
 
-def _clean_user_input(text):
-    text = text.strip()
-    cleaned_text = text.replace("<at>Marvis-test</at>", "").strip() if text.find("<at>Marvis-test</at>") >= 0 else text
-    return cleaned_text
-
 class BOT_PROCESSOR(ActivityHandler):
-    def _clean_user_input(self, text):
+    def _clean_user_input(self, text, app_name):
         text = text.strip()
-        cleaned_text = text.replace("<at>Marvis-test</at>", "").strip() if text.find("<at>Marvis-test</at>") >= 0 else text
+        cleaned_text = text.replace("<at>{}</at>".format(app_name), "").strip()
         return cleaned_text
 
     async def on_message_activity(self, turn_context: TurnContext):
-        # clean input message
-        user_msg = _clean_user_input(turn_context.activity.text)
-
-        # initialising class for credentials
         credentials = Cred_Ops(turn_context)
 
+        # clean input message
+        user_msg = self._clean_user_input(turn_context.activity.text, turn_context.activity.recipient.name)
+
+        channel_type = turn_context.activity.conversation.conversation_type
+
+        # check if user is setting credentials in personal chat
+        if channel_type == "personal":
+            if await credentials.is_setting_credentials(user_msg): return
+
         # fetch credentials
-        token, org = credentials.fetch_credentials()
+        token, org = credentials.fetch_credentials(channel_type)
 
         # verify credentials
         if not await credentials.verify_credentials(token, org): return
-        
-        api_response = fetch_marvis_response(user_msg, token, org)
+
+        mist_api = Mist_Api(turn_context, user_msg, token, org)
+        api_response = mist_api.fetch_marvis_response()
 
         # handling error response code
         if api_response.status_code != 200:
-            await Error_Handler.credential_error(turn_context, api_response.status_code)
+            error_handler = Error_Handler(turn_context, api_response.status_code)
+            await error_handler.status_code_handler()
             return
-        
+
         response_text = json.loads(api_response.text)
         marvis_response = response_text['data']
 
         # creating simple text response for user
-        response_handler = Response_Handler(marvis_response)
-        formatted_response_lst = response_handler.generate_response_list()
-
+        formatted_response_lst = Response_Handler.generate_response_list(marvis_response)
         for formatted_response in formatted_response_lst:
             response = await post_message(turn_context, formatted_response)
+
         return response

@@ -4,6 +4,6 @@ from .general_utils import (
     Response_Handler, 
     post_message
     )
-from .mist_api import fetch_marvis_response
+from .mist_api import Mist_Api
 
-__all__ = ['Error_Handler', 'Cred_Ops', 'Response_Handler', 'post_message', 'fetch_marvis_response']
+__all__ = ['Error_Handler', 'Cred_Ops', 'Response_Handler', 'Mist_Api', 'post_message']
