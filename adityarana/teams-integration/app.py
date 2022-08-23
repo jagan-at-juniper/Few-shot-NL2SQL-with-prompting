@@ -64,6 +64,7 @@ ADAPTER.on_turn_error = on_error
 @app.route("/api/messages", methods=['POST'])
 async def message():
     start = time.time()
+    # Checking for request content-type
     if "application/json" in request.headers["Content-Type"]:
         body = request.get_json()
     else:
@@ -73,9 +74,10 @@ async def message():
                     status=415
                 )
         return resp
-
+    # Initialising bot activity with body of request
     activity = Activity().deserialize(body)
     auth_header = request.headers["Authorization"] if "Authorization" in request.headers else ""
+    # Calling the Bot
     await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
     print("Time Taken:", time.time() - start)
     return jsonify(success=True)
