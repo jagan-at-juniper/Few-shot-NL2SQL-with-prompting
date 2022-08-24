@@ -1,16 +1,33 @@
-from pyspark.sql import functions as F
+from pyspark.sql import SparkSession
+
+import pyspark.sql.functions as F
+import json
+from datetime import datetime,timedelta
+import os
+
 env = "production"
-# env = "staging"
+provider = os.environ.get("CLOUD_PROVIDER", "aws")
+# provider = "aws"
+# provider = "gcp"
+fs = "gs" if provider == "gcp" else "s3"
 
 
-dt = "2022-03-28"
+detect_time = datetime.now() - timedelta(hours=1)
+date_day = detect_time.strftime("%Y-%m-%d")
+date_hour = detect_time.strftime("%H")
+
+app_name = "ap-scan"
+dt = "2022-06-28"
 hr = "*"
-s3_bucket = "s3://mist-secorapp-{env}/cv-ap-scans-multipartition/cv-ap-scans-multipartition-{env}/dt={dt}/hr={hr}".format(env=env, dt=dt, hr=hr)
+
+s3_bucket = "{fs}://mist-secorapp-{env}/cv-ap-scans-multipartition/cv-ap-scans-multipartition-{env}/dt={dt}/hr={hr}".format(fs=fs, env=env, dt=date_day, hr=date_hour)
 print(s3_bucket)
 
 df = spark.read.orc(s3_bucket)
 # df.filter(col('ap').isNull() &
 df.printSchema()
+
+
 
 ap = "d420b0834ee5"
 ap2 = "5c5b353e8ff7"
