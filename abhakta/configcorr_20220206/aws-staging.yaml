@@ -1,0 +1,90 @@
+dags:
+  example_DAG-1:
+    tasks:
+      create_cluster:
+        instances_params:
+          task_type: r4.xlarge
+          core_count: 3
+        spark_properties:
+          spark.sql.shuffle.partitions: 5
+  saturn_train:
+    tasks:
+      TrainDataAgg:
+        spark_properties:
+          spark.driver.memory: 4098m
+          spark.executor.memory: 4098m
+          spark.executor.cores: 1
+      AnomalyDetectionTrain:
+        spark_properties:
+          spark.executor.cores: 1
+          spark.task.cpus: 1
+          spark.driver.memory: 4098m
+          spark.executor.memory: 4098m
+  staging_ap_analytics:
+    tasks:
+      ClusterReady:
+        instances_params:
+          task_type: r3.xlarge
+          task_count: 40
+          master_market_type: SPOT
+          core_market_type: SPOT
+      ApHealthAnalytics:
+        spark_properties:
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 2048m
+          spark.executor.memoryOverhead: 1024m
+          spark.executor.cores: 1
+      ApStatsStaging:
+        spark_properties:
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 2048m
+          spark.executor.memoryOverhead: 1024m
+          spark.executor.cores: 1
+      ApEventStaging:
+        spark_properties:
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 2048m
+          spark.executor.memoryOverhead: 1024m
+          spark.executor.cores: 1
+  ap_reboot_log_analysis:
+    tasks:
+      StartCluster:
+        instances_params:
+          core_count: 1
+      EnrichInvoluntaryReboots:
+        spark_properties:
+          spark.driver.memory: 4096m
+          spark.driver.memoryOverhead: 512m
+  internal_ap_stats_analytics:
+    tasks:
+      StartCluster:
+        instances_params:
+          master_market_type: SPOT
+          core_market_type: SPOT
+          task_type: r3.8xlarge
+          task_count: 2
+      InternalApStatsAnalytics:
+        spark_properties:
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 2048m
+          spark.executor.memoryOverhead: 1024m
+          spark.executor.cores: 1
+      SsrWanRecommenderAnalytics:
+        spark_properties:
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 2048m
+          spark.executor.instances: 36
+          spark.executor.cores: 1
+  entity_event_scope_apconfigchange:
+    tasks:
+      StartCluster:
+        instances_params:
+          task_type: r5.4xlarge
+          task_count: 2
+      ClientEventScopeAPConfigAnalytics:
+        spark_properties:
+          spark.driver.memory: 2048m
+          spark.driver.memoryOverhead: 1024m
+          spark.executor.memory: 4096m
+          spark.executor.memoryOverhead: 1024m
+          spark.executor.cores: 2

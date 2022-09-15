@@ -1,0 +1,47 @@
+event_name_1	event_name_2	Possible [y/n]	Confidence [H/M/L]	Comments	Already known [Y/N]	Impact [H/L]
+switch|switch_interface|switch_port_flap|switch_port_flap	ap|ap|low_memory|kernel_low_memory	N				
+switch|switch_interface|switch_port_flap|switch_port_flap	client|client|bad_client|wired_client_auth_failure	Y		interesting; event2 --> event 1	y	
+switch|switch_interface|switch_port_flap|switch_port_flap	ap|ap|ap_restart|pace_fatal	N	h			
+switch|switch_interface|switch_port_flap|switch_port_flap	site|site|preconnection_anomaly|authentication	N		interesting		
+switch|switch_interface|switch_port_flap|switch_port_flap	ap|ap|ap_disconnect|no_ip_address	y	h	event1 - event 2	Y	H
+switch|switch_interface|switch_port_flap|switch_port_flap	ap|ap|bad_cable|bad_cable	Y		can event2 --> event1	y	L
+switch|switch_interface|switch_port_flap|switch_port_flap	client|client|bad_client|client_auth_failure	N		interesting		
+client|client|bad_client|wired_client_dhcp_failure	site|site|connectivity_failure|failed_scope_dhcp_wired	y	h	some examples?		
+switch|switch_interface|negotiation_mismatch|negotiation_incomplete	switch|switch_interface|bad_cable|bad_cable	Y	H			
+switch|switch|switch_stp_loop|switch_stp_loop	switch|switch_interface|BPDU_Error|port_blocked	Y	H		y	L
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|load_config_error	y		what inside the config is impacting will be useful		H
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|commit_confirm	y	h	switch usually disconnects and then restarts after a commit		
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|load_current_config	y				
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|commit_check	y				
+switch|switch|switch_disconnect|switch_disconnect	gateway|gateway|gateway_disconnect|gateway_disconnect	y	h	if uplink then SW will disconnect; TBD - dig deeper		
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|get_config_diff	y		need to understand the event2		
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|config_failure|unknown	y	-	usually the SW will restart		
+switch|switch|switch_disconnect|switch_disconnect	ap|ap|ap_disconnect|no_ip_address	y	h	interesting		
+switch|switch|switch_disconnect|switch_disconnect	switch|switch|switch_health|fan_alarm	y	L	can event2 --> event1		
+switch|switch|switch_disconnect|switch_disconnect	gateway|gateway_chassis|gateway_health|high_control_plane_cpu_usage	y	L	interesting; TBD		
+switch|switch|switch_disconnect|switch_disconnect	ap|ap|ap_disconnect|mutual_authentication_failed	y	M			
+site|site|connectivity_failure|failed_scope_authentication	client|client|bad_client|client_auth_failure	y	h		y	
+client|client|bad_client|wired_client_auth_failure	site|site|connectivity_failure|failed_scope_authentication_wired	y	m		y	
+ap|ap|ap_disconnect|locally_offline	ap|ap|ap_disconnect|locally_online	y			y	
+ap|ap|ap_disconnect|locally_offline	ap|ap|ap_disconnect|mutual_authentication_failed	y			y	
+ap|ap|ap_disconnect|locally_offline	ap|ap|ap_disconnect|no_ip_address	y			y	
+client|client|bad_client|client_auth_failure	site|site|preconnection_anomaly|authentication	y	m			
+ap|ap|bad_cable|bad_cable	ap|ap|ap_disconnect|no_ip_address	y		get eamples on these one		
+ap|ap|bad_cable|bad_cable	ap|ap|ap_disconnect|locally_online	y		get eamples on these one		
+switch|switch|config_failure|commit_check	ap|radio|radio_deaf|rxmgmt_stuck	N	H	interesting		
+switch|switch|config_failure|commit_check	switch|switch|switch_health|fan_alarm	N				
+switch|switch|config_failure|auto_rollback	switch|switch|config_failure|get_config_diff	y	h			
+switch|switch|config_failure|auto_rollback	ap|ap|ap_disconnect|no_dns_response	N		interesting		
+site|site|preconnection_anomaly|authentication	site|site|saturn_anomaly|ARP	y			y	
+ap|ap|ap_disconnect|locally_online	ap|ap|ap_disconnect|no_ip_address	y	h			
+ap|ap|ap_disconnect|locally_online	ap|ap|ap_disconnect|mutual_authentication_failed	y	h			
+switch|switch|config_failure|commit_confirm_duplicate_vlan_id	switch|switch|config_failure|get_config_diff	y				
+switch|switch|config_failure|commit_confirm_duplicate_vlan_id	ap|ap|low_memory|kernel_low_memory	N				
+switch|switch|config_failure|get_config_diff	switch|switch|config_failure|load_config_error	y				
+switch|switch|config_failure|commit_confirm	switch|switch|config_failure|load_config_error	y				
+site|site|preconnection_anomaly|dhcp	switch|switch|switch_health|fan_alarm	N		interesting X		
+switch|switch|config_failure|load_config_error	switch|switch|switch_health|fan_alarm	y	L	"could be interesting, does config diff trigger an alarm?"		
+switch|switch|config_failure|load_config_error	ap|ap|ap_disconnect|mutual_authentication_failed	n	?	interesting		
+switch|switch|switch_health|fan_alarm	ap|ap|low_memory|kernel_low_memory	N				
+ap|ap|low_memory|kernel_low_memory	gateway|gateway_chassis|gateway_health|high_control_plane_cpu_usage	N				
+gateway|gateway|gateway_disconnect|gateway_disconnect	gateway|gateway_chassis|gateway_health|high_control_plane_cpu_usage	Y				
