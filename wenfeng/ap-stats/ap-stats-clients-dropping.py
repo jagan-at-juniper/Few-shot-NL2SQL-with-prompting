@@ -97,10 +97,8 @@ def get_df_radio(df, band):
     return df_radios
 
 
-def get_df_name(fs):
-    df_org = spark.read.parquet("{fs}://mist-secorapp-production/dimension/org".format(fs=fs)) \
-        .select(F.col("id").alias("OrgID"),F.col("name").alias("org_name"))
-    df_name = spark.read.parquet("{fs}://mist-secorapp-production/dimension/site/site.parquet".format(fs=fs)) \
+def get_df_name(fs, scope='device'):
+    df_name = spark.read.parquet("{fs}://mist-secorapp-production/dimension/{scope}/{scope}.parquet".format(fs=fs, scope = scope)) \
         .select(F.col("id").alias("SiteID"),F.col("name").alias("site_name"),F.col("org_id").alias("OrgID")).join(df_org,["OrgID"]) \
         .select("org_name","site_name","OrgID","SiteID")
 

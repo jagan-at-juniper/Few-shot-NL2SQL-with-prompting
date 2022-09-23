@@ -170,7 +170,7 @@ def compose_action(org_id, site_id, ap_id, dev, action, ts):
             "dev": "r0"
         },
         "note": """{"action_entity": "radio"}""",
-        "when": ts, #1638367832000,
+        "when": ts,  #1638367832000,
         "who": "MarvisScript"
     }
 
@@ -243,6 +243,7 @@ def bad_radio_detection(date_day, date_hour, last_hours=1, org_id="", site_id=""
         .agg(
         F.max("num_clients").alias("max_num_clients"),
         F.max('tx_phy_err').alias("max_tx_phy_err"),
+        F.max('max_stats_tx_phy_err').alias("max_mac_stats_tx_phy_err"),
         F.max("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_max"),
         F.min("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_min"),
         F.min("bcn_per_wlan").alias("bcn_per_wlan_min"),
@@ -250,7 +251,9 @@ def bad_radio_detection(date_day, date_hour, last_hours=1, org_id="", site_id=""
         F.max("num_wlans").alias("num_wlans")
     )
 
-    Filter_query_1 = "band==5 and max_num_clients <1 and (max_tx_phy_err>0 or bcn_per_wlan < 500) and num_wlans>0"
+    Filter_query_1 = "band==5 and max_num_clients <1 and " \
+                     "(max_tx_phy_err>0  or max_mac_stats_tx_phy_err> 0 or bcn_per_wlan < 500) and " \
+                     "num_wlans>0"
     df_radio_nf_problematic = df_radio_nf_g.filter(Filter_query_1).persist()
 
     return df_radio_nf_problematic

@@ -1,0 +1,67 @@
+source_type: sequence
+data_source_name: entity_event
+source_bucket: mist-aggregated-stats
+required_fields:
+  - org_id
+  - site_id
+hourly_partition: True
+
+filters:
+  - "lambda x: (('event_name' in x.keys() ) and
+                (x['event_name'] in ['connectivity_failure']) and
+                ('ap' in x['reason'].keys()) and
+                (x['severity'] > 50) )"
+
+# default properties for all events and they can be  overwritten inside each event config
+event_template:
+  mist_only: True
+  timestamp_field: timestamp
+  cross_batch_cutoff_seconds: 1800
+  enable_notification: False
+  enable_action: False
+  entity_mapping:
+    client:
+      # field name we want: field name in data source
+      wcid: wcid
+      wlan_id: wlan_id
+
+event-generators:
+
+  scope_auth:
+#    transformers:
+#      - name: analytics.transformer.rdd_2_df_transformer.Rdd2DFTransformer
+#        dataframe_fields:
+#          org_id: StringType
+#          site_id: StringType
+
+    events:
+      - name: analytics.event_generator.client.failed_scope_config_diff.FailedScopeConfigDiff
+        # scope auth failure
+        event_name: "connectivity_failure"
+        event_type: "failed_scope_authentication_configdiff"
+        category: "connectivity"
+        mist_only: False
+        entity_type: site
+#        scopes: ['ap']
+        failure_type: 'authentication'
+        symptom: 'auth_failure'
+        local_config_bucket_prefix: "s3://mist-data-science-dev/aditya/scope_with_ap_configs_"
+        local_config_bucket_suffix: "_withConfigMeta"
+        config_lookback_before_event: 21600 # 6 hours before scope event
+        previous_config_lookback: 604800 # 7 days before scope event
+        apstat_config_bucket: "mist-secorapp-<ENV>/" # "s3://mist-secorapp-production/"
+#        scope_graph:
+#          'org_id': ['site_id', 'authserver']
+#          'site_id': ['ap', 'authserver_site']
+#          'authserver': ['wlan_id', 'authserver_site']
+#          'wlan_id': ['wlan_site']
+#          'authserver_site': ['wlan_site']
+#          'wlan_site': ['ap_wlan']
+#          'ap': ['ap_wlan']
+#        log_bucket: 'ap-logs-{}'
+#        cross_batch_cutoff_seconds: 1800  # 30 * 60
+#        cross_batch_lookback_seconds: 86400  # 24 * 60 * 60
+#        agg_apstats_bucket: "mist-aggregated-stats-<ENV>"
+#        agg_apstats_prefix: "aggregated-stats/count_ap_id_by_{}_ap_stats_failing_scope"
+#        agg_client_bucket: "mist-aggregated-stats-<ENV>"
+#        agg_client_prefix: "aggregated-stats/count_ap_id_by_{}_es_client_events_failing_scope"
