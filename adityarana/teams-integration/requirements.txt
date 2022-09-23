@@ -1,7 +1,2 @@
-aioflask==0.4.0
-botbuilder==0.0.1
-botbuilder_core==4.14.2
-cachetools==5.2.0
-pymongo==4.2.0
-python-dotenv==0.20.0
-requests==2.25.1
+botbuilder-integration-aiohttp>=4.14.0
+botbuilder-dialogs>=4.14.0

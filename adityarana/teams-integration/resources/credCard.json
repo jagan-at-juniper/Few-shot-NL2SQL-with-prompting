@@ -1,0 +1,39 @@
+{
+    "type": "AdaptiveCard",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "**Provide your Mist Credentials**",
+            "wrap": true
+        },
+        {
+            "id": "org_id",
+            "type": "Input.Text",
+            "label": "Enter your Org ID:",
+            "placeholder": "Org ID"
+        },
+        {
+            "id": "token",
+            "type": "Input.Text",
+            "label": "Enter your Mist Token:",
+            "placeholder": "Mist Token"
+        }
+    ],
+    "actions": [
+        {
+            "type": "Action.Submit",
+            "title": "Set Credentials",
+            "data": {
+                "msteams": {
+                    "type": "messageBack",
+                    "displayText": "Set Credentials",
+                    "text": "/set_credentials"
+                },
+                "type": "credentials"
+            }
+        }
+        
+    ],
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.4"
+}
