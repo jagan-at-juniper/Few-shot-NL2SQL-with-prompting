@@ -25,12 +25,16 @@ from dialogs import MainDialog
 CONFIG = DefaultConfig()
 
 # Create adapter.
+# See https://aka.ms/about-bot-adapter to learn more about how bots work.
 SETTINGS = BotFrameworkAdapterSettings(CONFIG.APP_ID, CONFIG.APP_PASSWORD)
 ADAPTER = BotFrameworkAdapter(SETTINGS)
 
 
 # Catch-all for errors.
 async def on_error(context: TurnContext, error: Exception):
+    # This check writes out errors to console log .vs. app insights.
+    # NOTE: In production environment, you should consider logging this to Azure
+    #       application insights.
     print(f"\n [on_turn_error] unhandled error: {error}", file=sys.stderr)
     traceback.print_exc()
 

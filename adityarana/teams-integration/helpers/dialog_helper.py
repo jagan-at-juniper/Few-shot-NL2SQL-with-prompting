@@ -1,14 +1,11 @@
 from botbuilder.core import StatePropertyAccessor, TurnContext
 from botbuilder.dialogs import Dialog, DialogSet, DialogTurnStatus
-from botbuilder.core.teams import TeamsInfo
-
 
 class DialogHelper:
     @staticmethod
     async def run_dialog(
         dialog: Dialog, turn_context: TurnContext, accessor: StatePropertyAccessor
     ):
-        print(turn_context.activity.channel_data)
         dialog_set = DialogSet(accessor)
         dialog_set.add(dialog)
         dialog_context = await dialog_set.create_context(turn_context)

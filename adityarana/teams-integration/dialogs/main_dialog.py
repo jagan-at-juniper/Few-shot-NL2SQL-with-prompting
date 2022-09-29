@@ -17,9 +17,9 @@ from dialogs import LogoutDialog
 from utils import (
     GraphsApi,
     MistApi,
-    Utils,
     ErrorHandler,
     ResponseHandler,
+    post_message,
     DEFAULT_RESPONSES
 )
 
@@ -49,13 +49,19 @@ class MainDialog(LogoutDialog):
             WaterfallDialog(
                 "WFDialog",
                 [
-                    self.prompt_step,
-                    self.login_process_step,
+                    self.oauth_step,
+                    self.request_process_step,
                 ],
             )
         )
 
         self.initial_dialog_id = "WFDialog"
+
+        self.user_credentials = {}
+
+    def _clean_user_input(self, text):
+        cleaned_text = re.sub('<at>.*?</at>', '', text)
+        return cleaned_text.strip()
 
     def _create_adaptive_card_attachment(self, card) -> Attachment:
         card_path = os.path.join(os.getcwd(), card)
@@ -64,45 +70,77 @@ class MainDialog(LogoutDialog):
 
         return CardFactory.adaptive_card(card_data)
 
-    async def prompt_step(self, step_context: WaterfallStepContext) -> DialogTurnResult:
-        try:
-            return await step_context.begin_dialog(OAuthPrompt.__name__)
-        except Exception as e:
-            if 'SSO only supported in 1:1 conversations' in str(e):
-                await step_context.context.send_activity(
-                    MessageFactory.text("SSO is only supported in Private Conversations. Please download the bot from the store, then perform Sign-in under the private conversation. After that you can access the bot on the channel.")
-                )
-                return await step_context.end_dialog()
+    def _get_mist_api_request_metadata(self, step_context: WaterfallStepContext, org_id):
+        activity = step_context.context.activity
+        metadata = {
+            "time_zone": activity.local_timezone,
+            "utc_timestamp": str(activity.timestamp),
+            "local_timestamp": str(activity.local_timestamp),
+            "first_name": activity.from_property.name.split()[0],
+            "user_id": activity.from_property.id,
+            "conversation_type": activity.conversation.conversation_type,
+            "conversation_id": activity.conversation.id,
+            "org_id": org_id,
+            "org_user": "True"
+        }
+        return metadata
 
-    async def login_process_step(self, step_context: WaterfallStepContext) -> DialogTurnResult:
-        if step_context.result:
-            if not step_context.context.activity.type == 'message':
-                await step_context.context.send_activity(
-                    MessageFactory.text('You are now logged in...')
-                )
+    async def _set_user_credentials(self, access_token, step_context: WaterfallStepContext):
+        org_id = self.user_credentials.get('org_id', '')
+        actual_org_id = org_id[12:] if org_id.startswith('staging') else org_id
+        token = self.user_credentials.get('token', '')
+        env = org_id.split(':')[0] if org_id.startswith('staging') else self.user_credentials.get('environment', '')
 
-                # check if credentials already exists in their profile
-                mist_org_id, mist_token = GraphsApi.fetch_token_org(step_context.result.token)
+        if not (org_id or token):
+            await step_context.context.send_activity(
+                MessageFactory.text("Received empty form response. Please provide credentials before submitting the card.")
+            )
+            return await step_context.end_dialog()
+                
+        message = DEFAULT_RESPONSES['setting_credentials'] if actual_org_id and token else DEFAULT_RESPONSES['setting_org'] if actual_org_id else DEFAULT_RESPONSES['setting_token']
+        post_message(step_context.context, message)
 
-                if (mist_org_id and mist_token):
-                    return await step_context.end_dialog()
+        message = GraphsApi.update_credentials(access_token, actual_org_id, token, env)
+        post_message(step_context.context, message)
 
+    async def _signin_state_handler(self, step_context: WaterfallStepContext, access_token):
+        if self.user_credentials:
+            await self._set_user_credentials(access_token, step_context)
+        else:
+            mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(access_token)
+            
+            # if User's credemtials are set, try throw a greet message otherwise throw card to set credentials
+            if mist_org_id and mist_token and mist_env:
+                post_message(step_context.context, DEFAULT_RESPONSES['general_greet'])
+            else:
                 card = "resources/credCard.json"
                 message = Activity(
                     type=ActivityTypes.message,
                     attachments=[self._create_adaptive_card_attachment(card)],
                 )
                 await step_context.context.send_activity(message)
+
+    async def oauth_step(self, step_context: WaterfallStepContext) -> DialogTurnResult:
+        try:
+            if step_context.context.activity.value:
+                self.user_credentials = step_context.context.activity.value
+            return await step_context.begin_dialog(OAuthPrompt.__name__)
+        except Exception as e:
+            if 'SSO only supported in 1:1 conversations' in str(e):
+                post_message(step_context.context, DEFAULT_RESPONSES['sso_error'])
                 return await step_context.end_dialog()
-            
+
+    async def request_process_step(self, step_context: WaterfallStepContext) -> DialogTurnResult:
+        if step_context.result:
             ms_access_token = step_context.result.token
             print(ms_access_token)
 
-            # check if user triggered Login card despite being logged in
-            if step_context.context.activity.text == "/connect" or step_context.context.activity.text == "signin":
-                await step_context.context.send_activity(
-                    MessageFactory.text("You are already logged in...")
-                )
+            if step_context.context.activity.name == 'signin/verifyState':
+                self._signin_state_handler(step_context, ms_access_token)
+                return await step_context.end_dialog()
+            
+            # check for empty text response
+            if not step_context.context.activity.text:
                 return await step_context.end_dialog()
             
             # check if user wants to change credentials
@@ -117,32 +155,15 @@ class MainDialog(LogoutDialog):
             
             # check if user triggered setting credentials card
             if step_context.context.activity.text == "/set_credentials":
-                form_values = step_context.context.activity.value
-                org_id = form_values.get('org_id', '')
-                token = form_values.get('token', '')
-                
-                if not (org_id or token):
-                    await step_context.context.send_activity(
-                        MessageFactory.text("Received empty form response. Please provide credentials before submitting the card.")
-                    )
-                    return await step_context.end_dialog()
-                
-                message = DEFAULT_RESPONSES['setting_credentials'] if org_id and token else DEFAULT_RESPONSES['setting_org'] if org_id else DEFAULT_RESPONSES['setting_token']
-                await step_context.context.send_activity(
-                    MessageFactory.text(message)
-                )
-                message = GraphsApi.update_credentials(ms_access_token, org_id, token)
-                await step_context.context.send_activity(
-                    MessageFactory.text(message)
-                )
-                return await step_context.end_dialog()
-
-            if not step_context.context.activity.text:
+                self.user_credentials = step_context.context.activity.value
+                await self._set_user_credentials(ms_access_token, step_context)
                 return await step_context.end_dialog()
 
             user_query = self._clean_user_input(step_context.context.activity.text)
-            mist_org_id, mist_token = GraphsApi.fetch_token_org(ms_access_token)
-            print('=', mist_token, mist_org_id)
+            mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(ms_access_token)
+            print('=', mist_token, mist_org_id, mist_env)
+            
+            # check for mist credentials
             if not (mist_org_id and mist_token):
                 card = "resources/credCard.json"
                 message = Activity(
@@ -152,22 +173,22 @@ class MainDialog(LogoutDialog):
                 await step_context.context.send_activity(message)
                 return await step_context.end_dialog()
 
-            mist_api = MistApi(step_context.context, user_query, mist_token, mist_org_id)
+            # calling Mist API
+            request_metadata = self._get_mist_api_request_metadata(step_context)
+            mist_api = MistApi(user_query, mist_token, mist_org_id, mist_env, request_metadata)
             api_response = mist_api.fetch_marvis_response()        
             
+            # checking for response status code
             if api_response.status_code != 200:
-                error_handler = ErrorHandler(step_context.context, api_response.status_code)
-                await error_handler.status_code_handler()
-                return await step_context.end_dialog()
+                message = ErrorHandler.status_code_handler(api_response.status_code)
+                post_message(step_context.context, message)
             
-            response_text = json.loads(api_response.text)
-            marvis_response = response_text['data']
-
+            # reconstructing response
+            marvis_response = json.loads(api_response.text)
             formatted_response_lst = ResponseHandler.generate_response_list(marvis_response)
+            
             for formatted_response in formatted_response_lst:
-                await step_context.context.send_activity(
-                    MessageFactory.text(formatted_response)
-                )
+                post_message(step_context.context, formatted_response)
 
             return await step_context.end_dialog()
 
@@ -175,7 +196,3 @@ class MainDialog(LogoutDialog):
             "Login was not successful please try again."
         )
         return await step_context.end_dialog()
-    
-    def _clean_user_input(self, text):
-        cleaned_text = re.sub('<at>.*?</at>', '', text)
-        return cleaned_text.strip()

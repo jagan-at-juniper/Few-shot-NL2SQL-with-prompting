@@ -8,24 +8,9 @@
         },
         {
             "type": "TextBlock",
-            "text": "You have successfully installed Marvis Teams bot. Now, connect your Microsoft account with the Bot.",
+            "text": "You have successfully installed Marvis Teams bot.",
             "wrap": true
         }
-    ],
-    "actions": [
-        {
-            "type": "Action.Submit",
-            "title": "Connect Microsoft Account",
-            "data": {
-                "msteams": {
-                    "type": "messageBack",
-                    "displayText": "Connect Microsoft Account",
-                    "text": "/connect"
-                },
-                "type": "login"
-            }
-        }
-        
     ],
     "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
     "version": "1.4"

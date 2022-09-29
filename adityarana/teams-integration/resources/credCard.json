@@ -17,6 +17,34 @@
             "type": "Input.Text",
             "label": "Enter your Mist Token:",
             "placeholder": "Mist Token"
+        },
+        {
+            "id": "environment",
+            "type": "Input.ChoiceSet",
+            "choices": [
+                {
+                    "title": "Global 01",
+                    "value": "global01"
+                },
+                {
+                    "title": "Global 02",
+                    "value": "global02"
+                },
+                {
+                    "title": "Global 03",
+                    "value": "global03"
+                },
+                {
+                    "title": "Global 04",
+                    "value": "global04"
+                },
+                {
+                    "title": "Europe 01",
+                    "value": "europe01"
+                }
+            ],
+            "placeholder": "Environment",
+            "label": "Choose your Environment:"
         }
     ],
     "actions": [
@@ -32,7 +60,6 @@
                 "type": "credentials"
             }
         }
-        
     ],
     "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
     "version": "1.4"

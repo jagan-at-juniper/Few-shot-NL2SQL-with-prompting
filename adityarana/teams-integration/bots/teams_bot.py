@@ -28,10 +28,19 @@ class TeamsBot(DialogBot):
     ):
         for member in members_added:
             if member.id != turn_context.activity.recipient.id:
-                loginCard = "resources/loginCard.json"
+                # Send Welcome card
+                card = "resources/loginCard.json"
                 message = Activity(
                     type=ActivityTypes.message,
-                    attachments=[self._create_adaptive_card_attachment(loginCard)],
+                    attachments=[self._create_adaptive_card_attachment(card)],
+                )
+                await turn_context.send_activity(message)
+
+                # Send card to set credentials
+                card = "resources/credCard.json"
+                message = Activity(
+                    type=ActivityTypes.message,
+                    attachments=[self._create_adaptive_card_attachment(card)],
                 )
                 await turn_context.send_activity(message)
 

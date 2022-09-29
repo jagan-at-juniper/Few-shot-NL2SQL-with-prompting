@@ -1,4 +1,5 @@
 import os
+
 class DefaultConfig:
     PORT = 5000
     APP_ID = os.environ.get("MicrosoftAppId", "")
