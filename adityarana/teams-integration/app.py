@@ -24,7 +24,6 @@ from dialogs import MainDialog
 
 CONFIG = DefaultConfig()
 
-# Create adapter.
 SETTINGS = BotFrameworkAdapterSettings(CONFIG.APP_ID, CONFIG.APP_PASSWORD)
 ADAPTER = BotFrameworkAdapter(SETTINGS)
 
@@ -34,7 +33,6 @@ async def on_error(context: TurnContext, error: Exception):
     print(f"\n [on_turn_error] unhandled error: {error}", file=sys.stderr)
     traceback.print_exc()
 
-    # Send a message to the user
     await context.send_activity("The bot encountered an error or bug.")
     await context.send_activity(
         "To continue to run this bot, please fix the bot source code."
@@ -51,7 +49,6 @@ async def on_error(context: TurnContext, error: Exception):
             value=f"{error}",
             value_type="https://www.botframework.com/schemas/error",
         )
-        # Send a trace activity, which will be displayed in Bot Framework Emulator
         await context.send_activity(trace_activity)
 
 
