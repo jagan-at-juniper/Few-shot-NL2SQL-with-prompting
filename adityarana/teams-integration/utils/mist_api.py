@@ -31,15 +31,20 @@ class MistApi:
     payload, headers = self._get_payload_header()
 
     try:
-      response = requests.request("POST", url, headers=headers, data=payload, timeout=10)
+        response = requests.request("POST", url, headers=headers, data=payload, timeout=10)
+    except requests.exceptions.Timeout as e:
+        print("Timeout Exception: {}".format(e))
+        response = requests.Response()
+        response.status_code = 504
+        return response
     except requests.exceptions.RequestException as e:
-      print("Exception occurred: {}".format(e))
-      response = requests.Response()
-      response.status_code = 504
-      return response
+        print("Exception occurred: {}".format(e))
+        response = requests.Response()
+        response.status_code = 503
+        return response
     except Exception as e:
-      response = requests.Response()
-      response.status_code = 500
-      return response
+        response = requests.Response()
+        response.status_code = 500
+        return response
 
     return response

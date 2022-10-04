@@ -98,20 +98,28 @@ class MainDialog(LogoutDialog):
             return await step_context.end_dialog()
                 
         message = DEFAULT_RESPONSES['setting_credentials'] if actual_org_id and token else DEFAULT_RESPONSES['setting_org'] if actual_org_id else DEFAULT_RESPONSES['setting_token']
-        post_message(step_context.context, message)
-
-        message = GraphsApi.update_credentials(access_token, actual_org_id, token, env)
-        post_message(step_context.context, message)
+        await post_message(step_context.context, message)
+        try:
+            message = GraphsApi.update_credentials(access_token, actual_org_id, token, env)
+        except:
+            await post_message(step_context.context, DEFAULT_RESPONSES['timeout_error'])
+            return await step_context.end_dialog()
+        
+        await post_message(step_context.context, message)
 
     async def _signin_state_handler(self, step_context: WaterfallStepContext, access_token):
         if self.user_credentials:
             await self._set_user_credentials(access_token, step_context)
         else:
-            mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(access_token)
-            
+            try:
+                mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(access_token)
+            except:
+                await post_message(step_context.context, DEFAULT_RESPONSES['timeout_error'])
+                return await step_context.end_dialog()
+
             # if User's credemtials are set, try throw a greet message otherwise throw card to set credentials
             if mist_org_id and mist_token and mist_env:
-                post_message(step_context.context, DEFAULT_RESPONSES['general_greet'])
+                await post_message(step_context.context, DEFAULT_RESPONSES['general_greet'])
             else:
                 card = "resources/credCard.json"
                 message = Activity(
@@ -127,7 +135,7 @@ class MainDialog(LogoutDialog):
             return await step_context.begin_dialog(OAuthPrompt.__name__)
         except Exception as e:
             if 'SSO only supported in 1:1 conversations' in str(e):
-                post_message(step_context.context, DEFAULT_RESPONSES['sso_error'])
+                await post_message(step_context.context, DEFAULT_RESPONSES['sso_error'])
                 return await step_context.end_dialog()
 
     async def request_process_step(self, step_context: WaterfallStepContext) -> DialogTurnResult:
@@ -136,7 +144,7 @@ class MainDialog(LogoutDialog):
             print(ms_access_token)
 
             if step_context.context.activity.name == 'signin/verifyState':
-                self._signin_state_handler(step_context, ms_access_token)
+                await self._signin_state_handler(step_context, ms_access_token)
                 return await step_context.end_dialog()
             
             # check for empty text response
@@ -160,7 +168,11 @@ class MainDialog(LogoutDialog):
                 return await step_context.end_dialog()
 
             user_query = self._clean_user_input(step_context.context.activity.text)
-            mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(ms_access_token)
+            try:
+                mist_org_id, mist_token, mist_env = GraphsApi.fetch_token_org(ms_access_token)
+            except:
+                await post_message(step_context.context, DEFAULT_RESPONSES['timeout_error'])
+                return await step_context.end_dialog()
             print('=', mist_token, mist_org_id, mist_env)
             
             # check for mist credentials
@@ -174,21 +186,22 @@ class MainDialog(LogoutDialog):
                 return await step_context.end_dialog()
 
             # calling Mist API
-            request_metadata = self._get_mist_api_request_metadata(step_context)
+            request_metadata = self._get_mist_api_request_metadata(step_context, mist_org_id)
             mist_api = MistApi(user_query, mist_token, mist_org_id, mist_env, request_metadata)
             api_response = mist_api.fetch_marvis_response()        
-            
+
             # checking for response status code
             if api_response.status_code != 200:
                 message = ErrorHandler.status_code_handler(api_response.status_code)
-                post_message(step_context.context, message)
-            
+                await post_message(step_context.context, message)
+                return await step_context.end_dialog()
+
             # reconstructing response
             marvis_response = json.loads(api_response.text)
             formatted_response_lst = ResponseHandler.generate_response_list(marvis_response)
-            
+
             for formatted_response in formatted_response_lst:
-                post_message(step_context.context, formatted_response)
+                await post_message(step_context.context, formatted_response)
 
             return await step_context.end_dialog()
 

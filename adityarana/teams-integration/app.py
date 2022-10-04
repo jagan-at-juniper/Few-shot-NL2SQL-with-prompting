@@ -24,11 +24,12 @@ from dialogs import MainDialog
 
 CONFIG = DefaultConfig()
 
+# Create adapter
 SETTINGS = BotFrameworkAdapterSettings(CONFIG.APP_ID, CONFIG.APP_PASSWORD)
 ADAPTER = BotFrameworkAdapter(SETTINGS)
 
 
-# Catch-all for errors.
+# Catch-all for errors
 async def on_error(context: TurnContext, error: Exception):
     print(f"\n [on_turn_error] unhandled error: {error}", file=sys.stderr)
     traceback.print_exc()

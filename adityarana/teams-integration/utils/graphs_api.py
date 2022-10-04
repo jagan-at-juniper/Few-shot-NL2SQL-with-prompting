@@ -1,6 +1,21 @@
-from .general_utils import DEFAULT_RESPONSES
+from .general_utils import DEFAULT_RESPONSES, post_message
 import requests
 import json
+
+def make_request(method, url, headers, payload={}):
+    try:
+        response = requests.request(method, url, headers=headers, data=payload, timeout=5)
+        return response
+    except requests.exceptions.Timeout as e:
+        print("Graphs API Timeout Exception: {}".format(e))
+        raise Exception("Graph API Timeout Exception...")
+    except requests.exceptions.RequestException as e:
+        print("Graphs API Request Exception occurred: {}".format(e))
+        raise Exception("Graph API Request Exception...")
+    except Exception as e:
+        print("Graphs API some other occurred: {}".format(e))
+        raise Exception("Graph API Exception...")
+
 
 class GraphsApi:
     PROFILE_EXTENSION_URL = "https://graph.microsoft.com/v1.0/me/extensions"
@@ -16,9 +31,9 @@ class GraphsApi:
             'Content-Type': 'application/json'
         }
 
-        response = requests.request("GET", GraphsApi.PROFILE_EXTENSION_URL, headers=headers, data=payload)
+        response = make_request("GET", GraphsApi.PROFILE_EXTENSION_URL, headers, payload)
         response = json.loads(response.text)
-
+        
         if not response.get('value', []):
             payload = json.dumps({
                 "extensionName": "MistCredentials",
@@ -26,7 +41,7 @@ class GraphsApi:
                 "mist_org_id": "",
                 "mist_env": ""
             })
-            response = requests.request("POST", GraphsApi.PROFILE_EXTENSION_URL, headers=headers, data=payload)
+            response = make_request("POST", GraphsApi.PROFILE_EXTENSION_URL, headers, payload)
             return '', '', ''
 
 
@@ -54,7 +69,7 @@ class GraphsApi:
             'Content-Type': 'application/json'
         }
 
-        response = requests.request("PATCH", url, headers=headers, data=payload)
+        response = make_request("PATCH", url, headers, payload)
 
         message = DEFAULT_RESPONSES["setting_creds_success"] if response.status_code >= 200 and response.status_code < 300 else DEFAULT_RESPONSES["setting_creds_error"]
 

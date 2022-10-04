@@ -5,7 +5,7 @@ from .general_utils import DEFAULT_RESPONSES
 
 class ErrorHandler():
     @staticmethod
-    async def status_code_handler(status_code):
+    def status_code_handler(status_code):
         if status_code == 401:
             message = DEFAULT_RESPONSES["invalid_token"]
         if status_code == 404:
