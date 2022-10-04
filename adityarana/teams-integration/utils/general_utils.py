@@ -4,7 +4,7 @@ DEFAULT_RESPONSES = {
     "general_greet": "Hey there! Try asking me a question...",
     "sso_error": "SSO is only supported in Private Conversations. Please download the bot from the store, then perform Sign-in under the private conversation. After that you can access the bot on the channel.",
     "error": "Something went wrong...",
-    "invalid_creds": "Something went wrong with fetching the credentials...\n*Please make sure token and org ID are properly set.*<br>- Send <b>'Token \<Secret Key\>'</b> to set mist token<br>- Send <b>'Org_id \<Org ID\>'</b> to set your Org ID",
+    "invalid_creds": "Something went wrong with fetching the credentials...\n*Please make sure token and org ID are properly set.*<br>- Send <b>/credentials</b> in the chat to set Mist Credentials",
     "empty_response": "Unable to generate response for your query",
     "invalid_token": "Invalid User Token! Please provide correct token by sending `/credentials` in the chat",
     "invalid_org": "Invalid Org ID! Please provide correct Org ID by sending `/credentials` in the chat",
