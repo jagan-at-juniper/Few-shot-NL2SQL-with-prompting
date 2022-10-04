@@ -1,2 +1,9 @@
-botbuilder-integration-aiohttp>=4.14.0
 botbuilder-dialogs>=4.14.0
+aioflask==0.4.0
+botbuilder==0.0.1
+botbuilder_core==4.14.2
+aiohttp==3.8.1
+flask==2.0.1
+gunicorn==20.1.0
+uvicorn==0.18.3
+requests==2.25.1
