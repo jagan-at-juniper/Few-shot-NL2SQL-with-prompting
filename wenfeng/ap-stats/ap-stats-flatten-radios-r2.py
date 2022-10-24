@@ -42,7 +42,7 @@ df = spark.read.parquet(s3_bucket)
 df.printSchema()
 
 # only check AP41-* for now
-df_ap41 = df.filter(F.col("model").startswith('AP41'))
+# df = df.filter(F.col("model").startswith('AP41'))
 
 
 def flatten_radios(df):
@@ -61,8 +61,8 @@ def flatten_radios(df):
                 F.col("r1.interrupt_stats_tx_bcn_succ").alias("r1_interrupt_stats_tx_bcn_succ")
                 )
     return df_radios
-df_ap41_radios = flatten_radios(df_ap41)
-df_ap41_radios.printSchema()
+df_ap_radios = flatten_radios(df)
+df_ap_radios.printSchema()
 
 # from pyspark.ml.stat import Correlation
 # check_cols = ["r2_re_init",  "r0_interrupt_stats_tx_bcn_succ", "r1_interrupt_stats_tx_bcn_succ"]
@@ -77,20 +77,21 @@ df_ap41_radios.printSchema()
 
 
 # a naive  selection
-df_ap41_radios_problematic = df_ap41_radios.filter("r2_re_init > 0 and r1_interrupt_stats_tx_bcn_succ < 500")
+df_ap_radios_problematic = df_ap_radios.filter("r2_re_init > 0 and r1_interrupt_stats_tx_bcn_succ < 500")
 
 # scope: org/site/aps
-df_impact_scopes = df_ap41_radios_problematic.agg(
+df_impact_scopes = df_ap_radios_problematic.agg(
     F.countDistinct("org_id").alias("impacted_orgs"),
     F.countDistinct("site_id").alias("impacted_sites"),
     F.countDistinct("id").alias("impacted_aps"),
+    F.countDistinct("model").alias("models")
 )
 
 df_impact_scopes.show()
 
 
 # impacted aps
-df_ap41_radios_problematic_aps = df_ap41_radios_problematic.select("org_id", "site_id", "id",  "hostname", "firmware_version", "model")\
+df_ap41_radios_problematic_aps = df_ap_radios_problematic.select("org_id", "site_id", "id",  "hostname", "firmware_version", "model")\
         .groupBy("org_id", "site_id", "id",  "hostname", "firmware_version", "model").count()
 df_ap41_radios_problematic_aps.orderBy("count").show()
 
