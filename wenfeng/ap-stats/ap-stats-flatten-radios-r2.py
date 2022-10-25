@@ -30,9 +30,9 @@ now = datetime.now() - timedelta(hours=1)
 date_day = now.strftime("%Y-%m-%d")
 date_hour = now.strftime("%H")
 
-# date_day = "2021-10-2[78]"
+date_day = "2022-10-24"
 # date_day = "2022-10-24"
-# date_hour = "*"
+date_hour = "*"
 
 s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=env)
 s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
@@ -44,6 +44,24 @@ df.printSchema()
 # only check AP41-* for now
 # df = df.filter(F.col("model").startswith('AP41'))
 
+
+def get_df_name(fs):
+    """
+      Get Org and site name
+    :param fs:
+    :return:
+    """
+    df_org = spark.read.parquet("{fs}://mist-secorapp-production/dimension/org".format(fs=fs)) \
+        .select(F.col("id").alias("OrgID"),F.col("name").alias("org_name"))
+    df_name = spark.read.parquet("{fs}://mist-secorapp-production/dimension/site/site.parquet".format(fs=fs)) \
+        .select(F.col("id").alias("SiteID"),F.col("name").alias("site_name"),F.col("org_id").alias("OrgID")).join(df_org,["OrgID"]) \
+        .select("org_name","site_name","OrgID","SiteID")
+
+    t_org_1 = df_name.select(['OrgID','org_name']).withColumnRenamed('OrgID', 'org_id').dropDuplicates()
+    t_org_2 = df_name.select(['SiteID','site_name']).withColumnRenamed('SiteID', 'site_id').dropDuplicates()
+    return df_name
+
+df_name = get_df_name(fs)
 
 def flatten_radios(df):
     """
@@ -79,19 +97,67 @@ df_ap_radios.printSchema()
 # a naive  selection
 df_ap_radios_problematic = df_ap_radios.filter("r2_re_init > 0 and r1_interrupt_stats_tx_bcn_succ < 500")
 
+
+df_ap_radios_problematic= df_ap_radios_problematic.join(df_name, df_ap_radios_problematic.site_id == df_name.SiteID, how='left')
 # scope: org/site/aps
-df_impact_scopes = df_ap_radios_problematic.agg(
+
+
+# impacted aps
+df_ap41_radios_problematic_aps = df_ap_radios_problematic.select("org_id",'org_name', 'site_id', 'site_name',
+                                                                 "id",  "hostname", "firmware_version", "model")\
+        .groupBy("org_id", 'org_name', 'site_id', 'site_name',
+                 "id",  "hostname", "firmware_version", "model").count()
+
+df_ap41_radios_problematic_aps.persist()
+n_aps = df_ap41_radios_problematic_aps.count()
+print("problematic aps {}".format(n_aps))
+df_ap41_radios_problematic_aps.orderBy(F.col("count").desc()).show(n_aps, truncate=False)
+
+
+# only check high impacted
+df_ap41_radios_problematic_aps = df_ap41_radios_problematic_aps.filter("count>50")
+
+#impact scopes
+print("df_impact_scopes")
+df_impact_scopes = df_ap41_radios_problematic_aps.agg(
     F.countDistinct("org_id").alias("impacted_orgs"),
     F.countDistinct("site_id").alias("impacted_sites"),
     F.countDistinct("id").alias("impacted_aps"),
     F.countDistinct("model").alias("models")
 )
-
 df_impact_scopes.show()
 
+# impacted models
+print("impact models")
+df_impact_models = df_ap41_radios_problematic_aps.groupBy("model").agg(
+    F.countDistinct("org_id").alias("impacted_orgs"),
+    F.countDistinct("site_id").alias("impacted_sites"),
+    F.countDistinct("id").alias("impacted_aps"),
+    F.countDistinct("model").alias("models")
+)
+df_impact_models.show(100, truncate=False)
 
-# impacted aps
-df_ap41_radios_problematic_aps = df_ap_radios_problematic.select("org_id", "site_id", "id",  "hostname", "firmware_version", "model")\
-        .groupBy("org_id", "site_id", "id",  "hostname", "firmware_version", "model").count()
-df_ap41_radios_problematic_aps.orderBy("count").show()
+#impact models
+print("df_impact_orgs")
+df_impact_orgs = df_ap41_radios_problematic_aps.groupBy("org_id", "org_name", "model").agg(
+    F.countDistinct("org_id").alias("impacted_orgs"),
+    F.countDistinct("site_id").alias("impacted_sites"),
+    F.countDistinct("id").alias("impacted_aps"),
+    F.countDistinct("model").alias("models")
+).orderBy(F.col("impacted_aps").desc())
+df_impact_orgs.show(20, truncate=False)
 
+
+
+def save_df_to_fs(df, date_day, date_hour, app_name="selected-aps", band=""):
+    date_day = date_day.replace("[", "").replace("]", "").replace("*", "000")
+    date_hour = date_hour.replace("*", "000")
+    s3_path = "{fs}://mist-data-science-dev/wenfeng/{repo_name}_{band}/dt={dt}/hr={hr}" \
+        .format(fs=fs, repo_name=app_name, band=band, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
+    print(s3_path)
+    # df.coalesce(1).write.save(s3_path,format='parquet',   mode='overwrite', header=True)
+    df.write.save(s3_path, format='parquet', mode='overwrite', header=True)
+    return s3_path
+save_df_to_fs(df_ap41_radios_problematic_aps, date_day, date_hour, app_name, "")
+
+#
