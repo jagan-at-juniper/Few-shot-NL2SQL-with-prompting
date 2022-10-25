@@ -80,14 +80,14 @@ def flatten_radios(df):
                 F.col("r1.interrupt_stats_tx_bcn_succ").alias("r1_interrupt_stats_tx_bcn_succ")
                 )
 
-    prev_cols = ["date_hour", "r2_re_init",  "r0_interrupt_stats_tx_bcn_succ", "r1_interrupt_stats_tx_bcn_succ"]
+    prev_cols = ["date_hour", "terminator_timestamp", "r2_re_init",  "r0_interrupt_stats_tx_bcn_succ", "r1_interrupt_stats_tx_bcn_succ"]
     shiftAmount = -1
     window = Window.partitionBy(F.col('id')).orderBy(F.col('terminator_timestamp').desc())
 
     df_radios = df_radios.select("*",
                              *[F.lag(c, offset=shiftAmount).over(window).alias("prev_" + c) for c in prev_cols]) \
         .withColumn("time_diff", F.col("terminator_timestamp") - F.col("prev_terminator_timestamp")) \
-        .withColumn("r2_re_init_diff", (F.col("r2_re_init") - F.col("pre_r2_re_init")) ) \
+        .withColumn("r2_re_init_diff", (F.col("r2_re_init") - F.col("prev_r2_re_init")) ) \
         .withColumn("r0_bcn_drop", (F.col("r0_interrupt_stats_tx_bcn_succ") - F.col("prev_r0_interrupt_stats_tx_bcn_succ")) ) \
         .withColumn("r1_bcn_drop", (F.col("r1_interrupt_stats_tx_bcn_succ") - F.col("prev_r1_interrupt_stats_tx_bcn_succ")) )
 
