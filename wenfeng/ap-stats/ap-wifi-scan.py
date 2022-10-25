@@ -115,7 +115,7 @@ df_scan_channel_stats = df_scan.select("org_id", "site_id", "id", "date_time",
                                        F.explode("scan_channel_stats").alias("scan_channel_stats")) \
     .select("*", "scan_channel_stats.*") \
     .drop("scan_channel_stats") \
-    .withColumnRenamed("congest.rx_in_bss", "congest.rx_in_bss") \
+    .withColumnRenamed("congest.rx_in_bss", "congest_rx_in_bss") \
     .withColumnRenamed("congest.rx_other_bss", "congest_rx_other_bss") \
     .withColumnRenamed("congest.non_wifi", "congest_non_wifi") \
     .withColumnRenamed("scan_channel", F.col("channel.primary"))

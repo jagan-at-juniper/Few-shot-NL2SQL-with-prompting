@@ -47,13 +47,13 @@ bytes_to_uuid = F.udf(convert_bytes_to_uuid, StringType())
 bytes_to_mac = F.udf(convert_bytes_to_mac, StringType())
 
 
-now = datetime.now()  - timedelta(hours=5)
+now = datetime.now() - timedelta(hours=5)
 date_day = now.strftime("%Y-%m-%d")
 date_hour = now.strftime("%H")
-date_day = "2021-11-1[23456]/"
-date_hour = "*"
+# date_day = "2021-11-1[23456]/"
+# date_hour = "*"
 
-s3_bucket = "gs://mist-secorapp-{env}/ap-stats-full/ap-stats-full-{env}/".format(env=env)
+s3_bucket = "s3://mist-secorapp-{env}/ap-stats-full/ap-stats-full-{env}/".format(env=env)
 s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
 
 print(s3_bucket)

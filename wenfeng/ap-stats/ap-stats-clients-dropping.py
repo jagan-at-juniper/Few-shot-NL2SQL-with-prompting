@@ -158,7 +158,8 @@ df_suspicious_radios= df_suspicious_radios \
     .withColumn("tx_phy_err_high", F.col("tx_phy_err") > 1.0) \
     .withColumn("tx_error_high", (F.col("tx_failed") + F.col("tx_retried"))/ F.col("tx_pkts") >0.1) \
     .withColumn("rx_error_high", (F.col("rx_dups") + F.col("rx_errors"))/ F.col("rx_pkts")>0.1) \
-    .withColumn("utilization_non_wifi_high", F.col("utilization_non_wifi") > 0.20)
+    .withColumn("utilization_non_wifi_high", F.col("utilization_non_wifi") > 0.20)\
+
 
 cols = ["bcn_drop_large", "channel_updated", "bandwidth_updated","noise_floor_high","utilization_non_wifi_high" ,
         "tx_phy_err_high", "tx_error_high", "rx_error_high"]

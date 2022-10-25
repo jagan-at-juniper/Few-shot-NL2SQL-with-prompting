@@ -5,17 +5,17 @@ import pyspark.sql.functions as F
 import json
 from datetime import datetime,timedelta
 env = "production"
-# provider = "aws"
-provider = "gcp"
+provider = "aws"
+# provider = "gcp"
 fs = "gs" if provider == "gcp" else "s3"
 
-now = datetime.now() - timedelta(hours=1)
+now = datetime.now() - timedelta(hours=2)
 date_day = now.strftime("%Y-%m-%d")
 date_hour = now.strftime("%H")
 
 # date_day = "2021-10-2[78]"
 # date_day = "2022-01-1[8]"
-date_hour = "21"
+# date_hour = "*"
 
 s3_bucket = "{fs}://mist-secorapp-{env}/ap-stats-analytics/ap-stats-analytics-{env}/".format(fs=fs, env=env)
 s3_bucket += "dt={date}/hr={hr}/*.parquet".format(date=date_day, hr=date_hour)
@@ -41,6 +41,57 @@ df_radio = df.filter("uptime>86400")\
     .filter("radio.dev != 'r2' and radio.bandwidth>0 and not radio.radio_missing and radio.band==5")\
     .withColumn("num_wlans", F.size("radio.wlans"))\
     .withColumn("bcn_per_wlan", F.col("radio.interrupt_stats_tx_bcn_succ")/F.col("num_wlans"))
+
+
+def get_ap_without_wlans():
+    df_radio = df.filter("uptime>86400*7") \
+        .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "uptime",
+                F.col("when").alias("timestamp"),
+                F.explode("radios").alias("radio")
+                ) \
+        .filter("radio.dev != 'r2' and not radio.radio_missing") \
+        .withColumn("num_wlans", F.size("radio.wlans")) \
+        .withColumn("bcn_per_wlan", F.col("radio.interrupt_stats_tx_bcn_succ")/F.col("num_wlans"))
+
+    df_radio_no_wlans = df_radio.filter(F.col("num_wlans")<1) \
+        .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "radio.*", "num_wlans", "uptime", "bcn_per_wlan") \
+        .groupBy("org_id", "site_id", "id","hostname", "firmware_version", "model", "band", "dev") \
+        .agg(
+        F.max("channel").alias("max_channel"),
+        F.max("channel").alias("max_channel"),
+        F.max("channel").alias("max_channel"),
+        F.max("uptime").alias("uptime"),
+        F.max("num_clients").alias("max_num_clients"),
+        F.max('tx_phy_err').alias("max_tx_phy_err"),
+        F.max("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_max"),
+        F.min("interrupt_stats_tx_bcn_succ").alias("interrupt_stats_tx_bcn_succ_min"),
+        F.min("bcn_per_wlan").alias("bcn_per_wlan_min"),
+        F.avg("bcn_per_wlan").alias("bcn_per_wlan"),
+        F.max("num_wlans").alias("num_wlans")
+    )
+    naps_no_wlans = df_radio_no_wlans.count()
+    print("naps_no_wlans", naps_no_wlans)
+
+    if naps_no_wlans > 0:
+        df_radio_site_wlans = df_radio.select( "site_id", "id",  "num_wlans")\
+            .groupBy("site_id")\
+            .agg(
+                F.countDistinct("id").alias("num_aps"),
+                F.countDistinct(F.when(F.col("num_wlans")<1, F.col("id")).otherwise(None)).alias("aps_without_wlans"),
+            F.max("num_wlans").alias("site_max_num_wlans"),
+            F.min("num_wlans").alias("site_min_num_wlans"),
+            F.avg("num_wlans").alias("site_avg_num_wlans")
+        ).withColumnRenamed("site_id", "site_id0")
+
+        df_radio_no_wlans = df_radio_no_wlans.join(df_radio_site_wlans, df_radio_site_wlans.site_id0==df_radio_no_wlans.site_id )
+
+    return df_radio_no_wlans
+
+df_radio_no_wlans = get_ap_without_wlans()
+df_radio_no_wlans.show()
+
+df_radio_no_wlans_1 = df_radio_no_wlans.filter("site_avg_num_wlans>2.0")
+df_radio_no_wlans_1.count()
 
 # df_radio.printSchema()
 

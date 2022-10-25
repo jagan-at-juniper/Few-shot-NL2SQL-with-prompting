@@ -27,6 +27,15 @@ def bcn_per_wlan(bcn, num_wlans, model=""):
 bcn_per_wlan_norm = F.udf(bcn_per_wlan, FloatType())
 
 
+def save_df_to_fs(df, date_day, date_hour, app_name="aps-no-client-all"):
+    date_hour = "000" if date_hour=="*" else date_hour
+    s3_path = "{fs}://mist-data-science-dev/wenfeng/{repo_name}/dt={dt}/hr={hr}" \
+        .format(fs=fs, repo_name= app_name, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
+    print(s3_path)
+    # df.coalesce(1).write.save(s3_path,format='parquet',   mode='overwrite', header=True)
+    df.write.save(s3_path,format='parquet',   mode='overwrite', header=True)
+
+
 env = "production"
 provider = "aws"
 # provider = "gcp"
@@ -52,7 +61,7 @@ df_radio = df.filter("uptime>3600") \
             F.col("when").alias("timestamp"),
             F.explode("radios").alias("radio")
             ) \
-    .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "uptime",  "radio.*")\
+    .select("org_id", "site_id", "id", "hostname", "firmware_version", "model", "uptime",  "timestamp",  "radio.*")\
     .withColumn("num_wlans", F.size("wlans")) \
     .filter("dev != 'r2' and bandwidth>0 and not radio_missing and band==5 and num_wlans>0") \
     .withColumn("bcn_per_wlan1", bcn_per_wlan_norm(F.col("interrupt_stats_tx_bcn_succ"), F.col("num_wlans"), F.col("model"))) \
@@ -64,6 +73,18 @@ df_radio = df.filter("uptime>3600") \
     .withColumn("mac_stats_tx_phy_err_high", F.col("mac_stats_tx_phy_err")>1.0) \
     .withColumn("mac_stats_tx_phy_err_high", F.col("mac_stats_tx_phy_err")>1.0) \
     .withColumn("utilization_non_wifi_high", F.col("utilization_non_wifi")>0.30)
+
+
+def get_bcn_df(df_radio):
+    df_radio_with_bcn_drop = df_radio.filter("bcn_per_wlan_drop") \
+        .groupBy("org_id", "site_id", "id","hostname", "firmware_version", "model", "band").agg(
+        F.min("timestamp").alias("start_timestamp"),
+        F.max("timestamp").alias("end_timestamp")
+    ).withColumn("bcn_drop_time", (F.col("end_timestamp") - F.col("start_timestamp")/1_000_000))
+    return df_radio_with_bcn_drop
+
+df_radio_with_bcn_drop = get_bcn_df(df_radio)
+save_df_to_fs(df_radio_with_bcn_drop, date_day, date_hour, "aps-bcn-drop")
 
 df_radio.filter("bcn_per_wlan>=700").show()
 
@@ -88,8 +109,8 @@ df_radio_nf_g = df_radio\
     F.count("id").alias("counts"),
     F.collect_set("channel").alias("channels"),
     F.max("num_clients").alias("max_num_clients"),
-    F.max('rx_errors').alias("rx_errors_max"),
-    F.max('tx_errors').alias("tx_errors_max"),
+    F.max(F.col('rx_errors')/F.col("rx_pkts")).alias("rx_errors_max"),
+    F.max(F.col('tx_errors')/F.col("tx_pkts")).alias("tx_errors_max"),
     F.max('tx_phy_err').alias("tx_phy_err_max"),
     F.min('tx_phy_err').alias("tx_phy_err_min"),
     F.avg('tx_phy_err').alias("tx_phy_err_avg"),
@@ -113,8 +134,27 @@ df_radio_nf_g = df_radio\
     F.sum(F.when(F.col("noise_floor_high")==True, 1).otherwise(0)).alias("noise_floor_high_count"),
     F.sum(F.when(F.col("tx_phy_err_high")==True, 1).otherwise(0)).alias("tx_phy_err_high_count"),
     F.sum(F.when(F.col("mac_stats_tx_phy_err_high")==True, 1).otherwise(0)).alias("mac_stats_tx_phy_err_high_count"),
-    F.sum(F.when(F.col("utilization_non_wifi_high")==True, 1).otherwise(0)).alias("utilization_non_wifi_high_count")
-)
+    F.sum(F.when(F.col("utilization_non_wifi_high")==True, 1).otherwise(0)).alias("utilization_non_wifi_high_count"),
+    F.min(F.when(F.col("bcn_per_wlan_drop")==True, F.col("timestamp")).otherwise(0)).alias("start_timestamp"),
+    F.max(F.when(F.col("bcn_per_wlan_drop")==True, F.col("timestamp")).otherwise(0)).alias("end_timestamp")
+).withColumn("bcn_drop_time", F.col("end_timestamp") - F.col("start_timestamp"))
+
+
+#
+
+
+# df_radio_with_bcn_drop = df_radio_nf_g.filter("bcn_drop_time>0") #.select("start_timestamp", "end_timestamp", "bcn_drop_time").show()
+# w = Window.partitionBy("userid").orderBy("eventtime")
+# DF = DF.withColumn("indicator", (DF.timeDiff > 300).cast("int"))
+# DF = DF.withColumn("subgroup", func.sum("indicator").over(w) - func.col("indicator"))
+# DF = DF.groupBy("subgroup").agg(
+#     func.min("eventtime").alias("start_time"),
+#     func.max("eventtime").alias("end_time"),
+#     func.count("*").alias("events")
+# )
+# df_radio_bcn = df_radio_nf_g.filter("bcn_per_wlan_drop_count > 0").
+#     .withColumn("bcn_drop_start", F.when(F.col("bcn_per_wlan")<500, F.col("timestamp")).otherwise(F.col("end_timestamp"))) \
+#     .withcolumn("bcn_drop_end", F.when(F.col("bcn_per_wlan")>500, F.col("timestamp")).otherwise(F.col("end_timestamp")))
 
 df_radio_nf_g = df_radio_nf_g.withColumn("has_client", F.col("max_num_clients") > 0) \
     .withColumn("bcn_drop", F.col("bcn_per_wlan_drop_count")/F.col("counts") > 0.5) \
@@ -131,18 +171,13 @@ df_radio_nf_g.select("counts", "bcn_per_wlan_drop_count", "noise_floor_high_coun
                      "tx_phy_err_high_count", "mac_stats_tx_phy_err_high_count",
                      "utilization_non_wifi_high_count").show()
 
+""" only APs without clients"""
 df_radio_nf_g0 = df_radio_nf_g.filter("max_num_clients<1 ")
 
 df_radio_nf_g.select("has_client", "bcn_drop").groupBy("has_client", "bcn_drop").count().show()
 
 
-def save_df_to_fs(df, date_day, date_hour, app_name="aps-no-client-all"):
-    date_hour = "000" if date_hour=="*" else date_hour
-    s3_path = "{fs}://mist-data-science-dev/wenfeng/{repo_name}/dt={dt}/hr={hr}" \
-        .format(fs=fs, repo_name= app_name, dt=date_day.replace("[", "").replace("]", ""), hr=date_hour)
-    print(s3_path)
-    # df.coalesce(1).write.save(s3_path,format='parquet',   mode='overwrite', header=True)
-    df.write.save(s3_path,format='parquet',   mode='overwrite', header=True)
+
 
 save_df_to_fs(df_radio_nf_g0, date_day, date_hour, "zero-clients")
 
