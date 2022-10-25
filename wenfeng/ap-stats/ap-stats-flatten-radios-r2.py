@@ -78,6 +78,18 @@ def flatten_radios(df):
                 F.col("r0.interrupt_stats_tx_bcn_succ").alias("r0_interrupt_stats_tx_bcn_succ"),
                 F.col("r1.interrupt_stats_tx_bcn_succ").alias("r1_interrupt_stats_tx_bcn_succ")
                 )
+
+    prev_cols = ["date_hour", "r2_re_init",  "r0_interrupt_stats_tx_bcn_succ", "r1_interrupt_stats_tx_bcn_succ"]
+    shiftAmount = -1
+    window = Window.partitionBy(F.col('id')).orderBy(F.col('terminator_timestamp').desc())
+
+    df_radios = df_radios.select("*",
+                             *[F.lag(c, offset=shiftAmount).over(window).alias("prev_" + c) for c in prev_cols]) \
+        .withColumn("time_diff", F.col("terminator_timestamp") - F.col("prev_terminator_timestamp")) \
+        .withColumn("r2_re_init_diff", (F.col("r2_re_init") - F.col("pre_r2_re_init")) ) \
+        .withColumn("r0_bcn_drop", (F.col("r0_interrupt_stats_tx_bcn_succ") - F.col("prev_r0_interrupt_stats_tx_bcn_succ")) ) \
+        .withColumn("r1_bcn_drop", (F.col("r1_interrupt_stats_tx_bcn_succ") - F.col("prev_r1_interrupt_stats_tx_bcn_succ")) )
+
     return df_radios
 df_ap_radios = flatten_radios(df)
 df_ap_radios.printSchema()
@@ -95,7 +107,7 @@ df_ap_radios.printSchema()
 
 
 # a naive  selection
-df_ap_radios_problematic = df_ap_radios.filter("r2_re_init > 0 and r1_interrupt_stats_tx_bcn_succ < 500")
+df_ap_radios_problematic = df_ap_radios.filter("r2_re_init_diff > 0 and r1_bcn_drop < -10")
 
 
 df_ap_radios_problematic= df_ap_radios_problematic.join(df_name, df_ap_radios_problematic.site_id == df_name.SiteID, how='left')
