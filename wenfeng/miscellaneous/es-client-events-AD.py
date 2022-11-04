@@ -6,6 +6,7 @@ import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.ml.feature import VectorAssembler
+from pyspark.sql.types import StructType,StructField, StringType
 
 env = "production"
 provider = os.environ.get("CLOUD_PROVIDER", "aws")
@@ -64,14 +65,17 @@ def get_cosine_similarity(df1, df2):
 
 @F.udf
 def max_index(a_col):
+    """
+    TODO: 
+    :param a_col:
+    :return:
+    """
     if not a_col:
         return a_col
     if isinstance(a_col, SparseVector):
         a_col = DenseVector(a_col)
     a_col = vector_to_array(a_col)
     return np.argmax(a_col)
-
-
 
 
 def fetch_data(date_day, date_hour, fs="s3", env="production"):
@@ -84,11 +88,17 @@ def fetch_data(date_day, date_hour, fs="s3", env="production"):
     """
     s3_path = f"{fs}://mist-secorapp-{env}/es-client-event/es-client-event-{env}/dt={date_day}/hr={date_hour}"
     print(s3_path)
-
-    # df = spark.read.parquet(s3_path)
-    df = spark.read.format('orc').load(s3_path)
-    # df.printSchema()
-    return df
+    try:
+        # df = spark.read.parquet(s3_path)
+        df = spark.read.format('orc').load(s3_path)
+        # df.printSchema()
+        return df
+    except Exception as e:
+        print(str(e))
+        #Create empty DatFrame with no schema (no columns)
+        df = spark.createDataFrame([], StructType([]))
+        # df3.printSchema()
+        return df
 
 
 def get_feature_list(df, cols=['ev_type']):
