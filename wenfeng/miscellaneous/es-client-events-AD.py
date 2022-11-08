@@ -8,13 +8,25 @@ from pyspark.sql.types import *
 from pyspark.ml.feature import VectorAssembler
 from pyspark.sql.types import StructType,StructField, StringType
 
+os_env = os.environ
 env = "production"
-provider = os.environ.get("CLOUD_PROVIDER", "aws")
-provider = "aws"
+
+provider = os.environ.get("CLOUD_PROVIDER")
+if not provider:
+    if os_env.get("AWS_DEFAULT_REGION"):
+        provider = "aws"
+    elif os_env.get("DATAPROC_VERSION", "0"):
+        provider = "gcp"
+
+if not provider:
+    provider = "aws"
+
+if provider == "aws" and os_env.get("AWS_DEFAULT_REGION").find("eu")>-1:
+        env = "eu"
 # provider = "gcp"
 fs = "gs" if provider == "gcp" else "s3"
 
-app_name = "es-client-events"
+app_name = "es-client-events-{}".format(env)
 spark = SparkSession \
     .builder \
     .appName(app_name) \
@@ -66,7 +78,7 @@ def get_cosine_similarity(df1, df2):
 @F.udf
 def max_index(a_col):
     """
-    TODO: 
+    TODO:
     :param a_col:
     :return:
     """
@@ -198,14 +210,19 @@ def save_df_to_fs(df, date_day, date_hour, app_name="aps-no-client-all", band=""
 
 event_types = get_feature_list(None, [])
 validating_features = ["count_" + c if c != None else 'count_none' for c in event_types]
-print(validating_features)
+n_features = len(validating_features)
+print(n_features, validating_features)
 
 # comparing
+date_now = datetime.now()
+date_day = date_now.strftime("%Y-%m-%d")
+date_hour = date_now.strftime("%H")
+
 cosine_list = []
-for delta_hr in range(0, 24):
-    screening_time = datetime.now() - timedelta(hours=delta_hr)
-    date_day = screening_time.strftime("%Y-%m-%d")
-    date_hour = screening_time.strftime("%H")
+for delta_hr in range(1, 24*7):
+    screening_time = date_now - timedelta(hours=delta_hr)
+    date_day_screening = screening_time.strftime("%Y-%m-%d")
+    date_hour_screening = screening_time.strftime("%H")
 
     # reference/baseline
     ref_time = screening_time - timedelta(days=1)
@@ -213,10 +230,10 @@ for delta_hr in range(0, 24):
     date_hour_ref = ref_time.strftime("%H")
     print("screening", screening_time, ref_time)
     # screening data
-    df_screening = fetch_data(date_day, date_hour, fs, env)
+    df_screening = fetch_data(date_day_screening, date_hour_screening, fs, env)
     num_screening = df_screening.count()
     print(num_screening)
-    if num_screening <1:
+    if num_screening < 1:
         break
     df_screening_flatten = flatt_df(df_screening, "ev_type", event_types)
     df_screening_vector = get_vectorized_df(df_screening_flatten, validating_features)
@@ -225,7 +242,7 @@ for delta_hr in range(0, 24):
     df_ref = fetch_data(date_day_ref, date_hour_ref, fs, env)
     num_reference = df_ref.count()
     print(num_reference)
-    if num_reference <1:
+    if num_reference < 1:
         break
     df_ref_flatten = flatt_df(df_ref, "ev_type", event_types)
     df_ref_vector = get_vectorized_df(df_ref_flatten, validating_features)
@@ -233,17 +250,21 @@ for delta_hr in range(0, 24):
     result = get_cosine_similarity(df_screening_vector, df_ref_vector)
     result.show()
     similarity = list(result.select("sim_cosine").toPandas()['sim_cosine'])[0]
-    cosine_list.append([screening_time, ref_time, num_screening, num_reference, similarity])
 
-    print("screening_time:{}:{}".format(date_day, date_hour), "ref={}:{}".format(date_day_ref, date_hour_ref),
-          num_screening, "vs", num_reference, "sim_cosine", similarity)
+    similarity_uncertainty = float(np.sqrt(n_features/num_reference + n_features/num_screening))
+    cosine_values = [screening_time, ref_time, num_screening, num_reference, similarity, similarity_uncertainty]
+    cosine_list.append(cosine_values)
+
+    print("screening_time:{}:{}".format(date_day_screening, date_hour_screening), "ref={}:{}".format(date_day_ref, date_hour_ref),
+          num_screening, "vs", num_reference, "sim_cosine", similarity, "+-", similarity_uncertainty)
 
 # save result
-similarity_Columns = ["screening_time", "ref_time", "num_screening", "num_reference", "similarity"]
-df_similarity = spark.createDataFrame(data=cosine_list, schema = similarity_Columns)
+print("saving data")
+similarity_Columns = ["screening_time", "ref_time", "num_screening", "num_reference", "similarity", "similarity_uncertainty"]
+df_similarity = spark.createDataFrame(data=cosine_list, schema=similarity_Columns)
 df_similarity.printSchema()
-df_similarity.show(truncate=False)
+df_similarity.show(100, truncate=False)
 
+print("saving data")
 save_df_to_fs(df_similarity, date_day, "00", app_name, "")
-
 print("Done!")
