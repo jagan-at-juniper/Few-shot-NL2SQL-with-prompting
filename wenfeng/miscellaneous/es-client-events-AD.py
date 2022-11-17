@@ -43,7 +43,8 @@ def flatt_df(df, target_col="ev_type", event_types=[], groupby_cols=[]):
     """
     df_flatten = df.groupBy(groupby_cols).agg(
         *(F.sum(F.when(F.col(target_col) == c, 1).otherwise(0)).alias("count_" + c) for c in event_types if c),
-        F.sum(F.when(F.col(target_col) == None, 1).otherwise(0)).alias("count_none")
+        F.sum(F.when(F.col(target_col) == None, 1).otherwise(0)).alias("count_none"),
+        F.sum(F.lit(1)).alias("total")
     )
     return df_flatten
 
@@ -195,6 +196,34 @@ def save_df_to_fs(df, date_day, date_hour, app_name="aps-no-client-all", band=""
     df.write.save(s3_path, format='parquet', mode='overwrite', header=True)
     print(s3_path)
     return s3_path
+
+def get_max_col(df1, df2, validating_features ):
+    """
+    
+    :param df1:
+    :param df2:
+    :param validating_features:
+    :return:
+    """
+    result_diff = df1.alias("i").join(df2.alias("j")) \
+        .select('*', *[(F.col("i."+c) - F.col("i.total")/F.col("j.total")*F.col("j."+c)).alias("diff_"+c) for c in validating_features])
+    result_diff.show()
+
+    from pyspark.sql.types import IntegerType, StructType,StructField, StringType
+    from operator import itemgetter
+
+    check_features = ['diff_' + c for c in validating_features]
+
+    df = result_diff
+    schema=StructType([StructField('maxval',IntegerType()),StructField('maxval_colname',StringType())])
+
+    maxcol = F.udf(lambda row: max(row,key=itemgetter(0)), schema)
+    maxDF = df.withColumn('maxfield', maxcol(F.struct([F.struct(df[x],F.lit(x)) for x in check_features]))). \
+        select( ['i.*', 'maxfield.maxval','maxfield.maxval_colname'] + ['diff_'+c for c in validating_features])
+
+    return maxDF
+
+# maxDF = get_max_col(df_mist_g, df_mist_prev_g, validating_features)
 
 #
 # datetime_str = '2022-10-20 23:00:00'
