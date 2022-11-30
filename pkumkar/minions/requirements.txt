@@ -1,0 +1,5 @@
+boto3==1.21.22
+botocore==1.24.46
+elasticsearch==7.17.1
+elasticsearch-dsl==7.4.0
+pandas==1.4.1
